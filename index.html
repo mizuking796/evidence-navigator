@@ -929,7 +929,7 @@
 
 <header style="cursor:pointer" onclick="location.href=location.pathname">
   <h1>Evidence Navigator</h1>
-  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン211件 + CQ2604件</p>
+  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン266件 + CQ3632件</p>
 </header>
 
 <main>
@@ -1027,15 +1027,27 @@
         <span id="browse-stats"></span>
         <select id="browse-cat">
           <option value="">全カテゴリ</option>
-          <option value="PT">理学療法</option>
-          <option value="OT">作業療法</option>
-          <option value="ortho">整形外科</option>
-          <option value="neuro">神経内科</option>
-          <option value="cardio">循環器</option>
-          <option value="resp">呼吸器</option>
-          <option value="onco">がん</option>
-          <option value="ent">耳鼻科</option>
-          <option value="general">総合</option>
+          <optgroup label="国内">
+            <option value="PT">理学療法</option>
+            <option value="OT">作業療法</option>
+            <option value="ortho">整形外科</option>
+            <option value="neuro">神経内科</option>
+            <option value="cardio">循環器</option>
+            <option value="resp">呼吸器</option>
+            <option value="onco">がん</option>
+            <option value="ent">耳鼻科</option>
+            <option value="general">総合</option>
+          </optgroup>
+          <optgroup label="International">
+            <option value="NICE">🇬🇧 NICE (UK)</option>
+            <option value="US">🇺🇸 US</option>
+            <option value="CA">🇨🇦 Canada</option>
+            <option value="AU">🇦🇺 Australia</option>
+            <option value="EU">🇪🇺 EU学会</option>
+            <option value="KR">🇰🇷 Korea</option>
+            <option value="WHO">🌐 WHO</option>
+            <option value="INT">🌍 Other</option>
+          </optgroup>
         </select>
       </div>
       <div id="browse-list"></div>
