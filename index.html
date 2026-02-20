@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evidence Navigator — エビデンスに基づく医療文献検索</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                   'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+      color: #fff;
+      padding: 1.5rem 2rem;
+      text-align: center;
+    }
+    header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: .02em; }
+    header p  { font-size: .85rem; opacity: .85; margin-top: .3rem; }
+
+    /* ── Search Panel ───────────────────────── */
+    .search-panel {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 1.5rem;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+    .search-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+    }
+    .field { position: relative; }
+    .field label {
+      display: block;
+      font-size: .8rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: .4rem;
+    }
+    .field input {
+      width: 100%;
+      padding: .65rem .8rem;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: .95rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .field input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    /* ── Autocomplete ───────────────────────── */
+    .ac-dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+      z-index: 100;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 2px;
+    }
+    .ac-item {
+      padding: .5rem .8rem;
+      font-size: .9rem;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover { background: #eff6ff; }
+
+    /* ── Search Actions ─────────────────────── */
+    .search-actions { margin-top: 1rem; text-align: center; }
+    #search-btn {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: .65rem 2.5rem;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    #search-btn:hover { background: #1d4ed8; }
+    #search-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    .search-options {
+      margin-top: .8rem;
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      align-items: center;
+    }
+    .search-options label {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .85rem;
+      color: #475569;
+      cursor: pointer;
+      user-select: none;
+    }
+    .search-options input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: #2563eb;
+      cursor: pointer;
+    }
+    .search-options .opt-desc {
+      font-size: .7rem;
+      color: #94a3b8;
+    }
+    .translated-info {
+      max-width: 800px;
+      margin: 0 auto .4rem;
+      padding: 0 1.5rem;
+      font-size: .8rem;
+      color: #6366f1;
+    }
+    .translated-info span { font-weight: 600; }
+
+    .search-hint {
+      margin-top: .8rem;
+      text-align: center;
+      font-size: .75rem;
+      color: #94a3b8;
+    }
+
+    /* ── Legend ──────────────────────────────── */
+    .legend {
+      max-width: 800px;
+      margin: 0 auto .8rem;
+      padding: 0 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem;
+      align-items: center;
+      font-size: .75rem;
+      color: #64748b;
+    }
+    .legend-title { font-weight: 600; margin-right: .3rem; }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: .2rem;
+    }
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+    .legend-sep { color: #cbd5e1; }
+
+    /* ── Loading ─────────────────────────────── */
+    #loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      gap: .8rem;
+      color: #64748b;
+    }
+    .spinner {
+      width: 24px; height: 24px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Summary ─────────────────────────────── */
+    #summary {
+      max-width: 800px;
+      margin: 0 auto .5rem;
+      padding: 0 1.5rem;
+      font-size: .85rem;
+      color: #64748b;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .total { font-weight: 700; color: #1e293b; }
+    .src-err { color: #dc2626; }
+
+    /* ── Results ─────────────────────────────── */
+    #results {
+      max-width: 800px;
+      margin: 0 auto 3rem;
+      padding: 0 1rem;
+    }
+
+    .ev-group { margin-bottom: .5rem; }
+    .ev-group summary {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .7rem 1rem;
+      background: #fff;
+      border-radius: 8px;
+      border-left: 4px solid;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      box-shadow: 0 1px 2px rgba(0,0,0,.05);
+      transition: background .15s;
+    }
+    .ev-group summary:hover { background: #f8fafc; }
+    .ev-group summary::-webkit-details-marker { display: none; }
+    .ev-group[open] summary { border-radius: 8px 8px 0 0; }
+
+    .ev-badge {
+      display: inline-block;
+      padding: .15rem .5rem;
+      border-radius: 4px;
+      color: #fff;
+      font-size: .75rem;
+      font-weight: 700;
+      min-width: 2.5rem;
+      text-align: center;
+    }
+    .ev-label { font-weight: 600; font-size: .9rem; }
+    .ev-count { margin-left: auto; font-size: .8rem; color: #94a3b8; }
+
+    .ev-items {
+      background: #fff;
+      border-radius: 0 0 8px 8px;
+      padding: .5rem;
+    }
+
+    /* ── Cards ───────────────────────────────── */
+    .card {
+      padding: .8rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .card:last-child { border-bottom: none; }
+
+    .card-title a {
+      color: #1e40af;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: .9rem;
+      line-height: 1.4;
+    }
+    .card-title a:hover { text-decoration: underline; }
+
+    .card-meta {
+      margin-top: .3rem;
+      font-size: .8rem;
+      color: #64748b;
+    }
+    .card-authors { margin-right: .5rem; }
+
+    .card-tags {
+      margin-top: .4rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .3rem;
+    }
+    .tag {
+      display: inline-block;
+      padding: .1rem .5rem;
+      border-radius: 4px;
+      font-size: .7rem;
+      background: #f1f5f9;
+      color: #475569;
+    }
+    .src-pubmed { background: #dbeafe; color: #1e40af; }
+    .src-jstage { background: #dcfce7; color: #166534; }
+    .src-s2     { background: #fce7f3; color: #9d174d; }
+    .src-openalex { background: #e0e7ff; color: #3730a3; }
+    .src-cinii  { background: #fef9c3; color: #854d0e; }
+    .tag-doi    { background: #fef3c7; color: #92400e; }
+    .tag-cite   { background: #f0fdf4; color: #166534; }
+
+    .src-epmc   { background: #e8e0f0; color: #5b21b6; }
+
+    /* ── Toolbar (Sort + Export) ─────────────── */
+    .toolbar {
+      max-width: 800px;
+      margin: .5rem auto;
+      padding: 0 1rem;
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .sort-group, .export-group {
+      display: flex;
+      gap: .3rem;
+      align-items: center;
+    }
+    .sort-group span, .export-group span {
+      font-size: .75rem;
+      color: #64748b;
+      font-weight: 600;
+      margin-right: .2rem;
+    }
+    .tb-btn {
+      padding: .25rem .6rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      font-size: .75rem;
+      color: #475569;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .tb-btn:hover { background: #f1f5f9; }
+    .tb-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+    /* ── Pyramid ─────────────────────────────── */
+    .pyramid {
+      max-width: 800px;
+      margin: .8rem auto;
+      padding: .8rem 1rem;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.05);
+      display: none;
+    }
+    .pyramid-title {
+      font-size: .8rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: .5rem;
+    }
+    .pyramid-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .25rem;
+    }
+    .pyramid-label {
+      width: 3rem;
+      text-align: right;
+      font-size: .7rem;
+      font-weight: 600;
+      color: #64748b;
+      flex-shrink: 0;
+    }
+    .pyramid-bar-bg {
+      flex: 1;
+      height: 18px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .pyramid-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .4s ease;
+      min-width: 0;
+    }
+    .pyramid-val {
+      width: 2.5rem;
+      font-size: .7rem;
+      color: #64748b;
+      flex-shrink: 0;
+    }
+    /* ── Empty / Error ──────────────────────── */
+    .no-results, .error-msg {
+      text-align: center;
+      padding: 2rem;
+      color: #64748b;
+      font-size: .9rem;
+    }
+    .error-msg { color: #dc2626; background: #fef2f2; border-radius: 8px; }
+
+    /* ── Footer ─────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: .75rem;
+      color: #94a3b8;
+    }
+    footer a { color: #64748b; }
+
+    /* ── AI Settings ──────────────────────────── */
+    .ai-settings {
+      max-width: 800px;
+      margin: 0 auto .5rem;
+      padding: 0 1rem;
+    }
+    .ai-settings-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      font-size: .75rem;
+      color: #94a3b8;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: .3rem .5rem;
+      border-radius: 6px;
+      transition: all .15s;
+    }
+    .ai-settings-toggle:hover { color: #64748b; background: #f1f5f9; }
+    .ai-settings-body {
+      display: none;
+      margin-top: .4rem;
+      padding: .6rem .8rem;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    .ai-settings-body.open { display: block; }
+    .ai-key-row {
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+    }
+    .ai-key-row label { font-size: .78rem; color: #475569; white-space: nowrap; }
+    .ai-key-row input {
+      flex: 1;
+      padding: .35rem .6rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: .8rem;
+      font-family: monospace;
+    }
+    .ai-key-hint {
+      font-size: .7rem;
+      color: #94a3b8;
+      margin-top: .3rem;
+    }
+
+    /* ── AI Summary ───────────────────────────── */
+    .ai-summary {
+      max-width: 800px;
+      margin: .8rem auto;
+      padding: 1rem 1.2rem;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-radius: 10px;
+      border-left: 4px solid #0ea5e9;
+      display: none;
+    }
+    .ai-summary-header {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .85rem;
+      font-weight: 700;
+      color: #0369a1;
+      margin-bottom: .5rem;
+    }
+    .ai-summary-body {
+      font-size: .85rem;
+      line-height: 1.65;
+      color: #1e293b;
+    }
+    .ai-summary-body strong { color: #0369a1; }
+    .ai-summary-loading {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      color: #64748b;
+      font-size: .8rem;
+    }
+    .ai-summary-note {
+      margin-top: .5rem;
+      font-size: .7rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    /* ── National Guidelines ─────────────────── */
+    .national-gl-section {
+      max-width: 800px;
+      margin: 1rem auto;
+      padding: 1.2rem;
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #ecfdf5 100%);
+      border-radius: 12px;
+      border: 2px solid #22c55e;
+      box-shadow: 0 2px 8px rgba(34,197,94,.12);
+      display: none;
+    }
+    .ngl-header {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .8rem;
+    }
+    .ngl-icon { font-size: 1.4rem; }
+    .ngl-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #166534;
+    }
+    .ngl-subtitle {
+      font-size: .72rem;
+      color: #15803d;
+      font-weight: 500;
+    }
+    .ngl-count {
+      margin-left: auto;
+      background: #22c55e;
+      color: #fff;
+      padding: .15rem .6rem;
+      border-radius: 12px;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+    .ngl-items {
+      display: flex;
+      flex-direction: column;
+      gap: .3rem;
+    }
+    .ngl-card {
+      padding: .6rem .8rem;
+      background: rgba(255,255,255,.75);
+      border-radius: 8px;
+      border-left: 3px solid #22c55e;
+      transition: background .15s;
+    }
+    .ngl-card:hover { background: rgba(255,255,255,.95); }
+    .ngl-card .card-title a { color: #166534; }
+    .ngl-org {
+      font-size: .72rem;
+      color: #15803d;
+      margin-top: .15rem;
+    }
+    .ngl-cat {
+      display: inline-block;
+      padding: .1rem .4rem;
+      border-radius: 4px;
+      font-size: .65rem;
+      font-weight: 600;
+      background: #bbf7d0;
+      color: #166534;
+      margin-right: .3rem;
+    }
+    .ngl-more {
+      margin-top: .5rem;
+      text-align: center;
+      font-size: .78rem;
+      color: #15803d;
+      cursor: pointer;
+    }
+
+    /* ── Clinical Questions ─────────────────── */
+    .cq-section {
+      max-width: 800px;
+      margin: 1rem auto;
+      padding: 1.2rem;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #f0f0ff 100%);
+      border-radius: 12px;
+      border: 2px solid #8b5cf6;
+      box-shadow: 0 2px 8px rgba(139,92,246,.12);
+      display: none;
+    }
+    .cq-header {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .8rem;
+    }
+    .cq-icon { font-size: 1.4rem; }
+    .cq-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #5b21b6;
+    }
+    .cq-subtitle {
+      font-size: .72rem;
+      color: #7c3aed;
+      font-weight: 500;
+    }
+    .cq-count {
+      margin-left: auto;
+      background: #8b5cf6;
+      color: #fff;
+      padding: .15rem .6rem;
+      border-radius: 12px;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+    .cq-items {
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+    }
+    .cq-card {
+      padding: .7rem .8rem;
+      background: rgba(255,255,255,.8);
+      border-radius: 8px;
+      border-left: 3px solid #8b5cf6;
+      transition: background .15s;
+    }
+    .cq-card:hover { background: rgba(255,255,255,.95); }
+    .cq-card-top {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      margin-bottom: .3rem;
+    }
+    .cq-num {
+      font-size: .7rem;
+      font-weight: 700;
+      color: #fff;
+      background: #8b5cf6;
+      padding: .1rem .4rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .cq-type {
+      font-size: .65rem;
+      font-weight: 600;
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      background: #ddd6fe;
+      color: #5b21b6;
+    }
+    .cq-ev-badge {
+      font-size: .65rem;
+      font-weight: 700;
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      color: #fff;
+      min-width: 1.5rem;
+      text-align: center;
+    }
+    .cq-ev-A { background: #059669; }
+    .cq-ev-B { background: #0d9488; }
+    .cq-ev-C { background: #d97706; }
+    .cq-ev-D { background: #dc2626; }
+    .cq-ev-na { background: #94a3b8; }
+    .cq-rec {
+      font-size: .65rem;
+      color: #6d28d9;
+      font-weight: 500;
+    }
+    .cq-question {
+      font-size: .88rem;
+      font-weight: 500;
+      color: #1e1b4b;
+      line-height: 1.5;
+    }
+    .cq-gl-info {
+      font-size: .7rem;
+      color: #7c3aed;
+      margin-top: .25rem;
+    }
+    .cq-gl-info a { color: #6d28d9; text-decoration: none; }
+    .cq-gl-info a:hover { text-decoration: underline; }
+    .cq-more {
+      margin-top: .5rem;
+      text-align: center;
+      font-size: .78rem;
+      color: #7c3aed;
+      cursor: pointer;
+    }
+
+    /* ── Patient Voice (目立つセクション) ────── */
+    .patient-voice-section {
+      max-width: 800px;
+      margin: 1rem auto;
+      padding: 1.2rem;
+      background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fff7ed 100%);
+      border-radius: 12px;
+      border: 2px solid #f59e0b;
+      box-shadow: 0 2px 8px rgba(245,158,11,.15);
+      display: none;
+    }
+    .pv-header {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .8rem;
+    }
+    .pv-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+    .pv-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #92400e;
+    }
+    .pv-subtitle {
+      font-size: .75rem;
+      color: #b45309;
+      font-weight: 500;
+    }
+    .pv-count {
+      margin-left: auto;
+      background: #f59e0b;
+      color: #fff;
+      padding: .15rem .6rem;
+      border-radius: 12px;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+    .pv-items {
+      display: flex;
+      flex-direction: column;
+      gap: .3rem;
+    }
+    .pv-card {
+      padding: .7rem .8rem;
+      background: rgba(255,255,255,.7);
+      border-radius: 8px;
+      border-left: 3px solid #f59e0b;
+      transition: background .15s;
+    }
+    .pv-card:hover { background: rgba(255,255,255,.9); }
+    .pv-card .card-title a { color: #92400e; }
+    .pv-card .card-meta { color: #78716c; }
+    .pv-card .tag { background: #fef3c7; color: #92400e; }
+    .pv-more {
+      margin-top: .5rem;
+      text-align: center;
+      font-size: .78rem;
+      color: #b45309;
+      cursor: pointer;
+    }
+
+    /* ── Responsive ──────────────────────────── */
+    @media (max-width: 768px) {
+      .search-fields { grid-template-columns: 1fr; }
+      header h1 { font-size: 1.3rem; }
+      header { padding: 1.2rem 1rem; }
+      .legend { font-size: .65rem; }
+      .search-tabs { overflow-x: auto; }
+      .ai-key-row { flex-direction: column; align-items: stretch; }
+      .patient-voice-section { margin: .8rem .5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Evidence Navigator</h1>
+  <p>エビデンスに基づく医療文献検索 — 6データベース横断検索</p>
+</header>
+
+<main>
+  <section class="search-panel">
+    <div class="search-fields">
+      <div class="field">
+        <label for="disease">疾患名</label>
+        <input type="text" id="disease"
+               placeholder="例: 変形性膝関節症, Osteoarthritis"
+               autocomplete="off">
+        <div class="ac-dropdown" id="disease-ac"></div>
+      </div>
+      <div class="field">
+        <label for="treatment">治療法</label>
+        <input type="text" id="treatment"
+               placeholder="例: 運動療法, Exercise Therapy"
+               autocomplete="off">
+        <div class="ac-dropdown" id="treatment-ac"></div>
+      </div>
+      <div class="field">
+        <label for="topic">関心事項</label>
+        <input type="text" id="topic"
+               placeholder="例: 予後, 合併症, Prognosis"
+               autocomplete="off">
+        <div class="ac-dropdown" id="topic-ac"></div>
+      </div>
+    </div>
+    <div class="search-options">
+      <label>
+        <input type="checkbox" id="multilingual">
+        多言語検索
+        <span class="opt-desc">（自動翻訳で英語・日本語を横断検索）</span>
+      </label>
+      <label>
+        <input type="checkbox" id="patient-voice">
+        患者の声を含む
+        <span class="opt-desc">（質的研究・患者体験も検索）</span>
+      </label>
+    </div>
+    <div class="search-actions">
+      <button id="search-btn">検索</button>
+    </div>
+    <div class="search-hint">
+      MeSH用語の候補が自動表示されます（英語入力時）。日本語でも検索できます。
+    </div>
+  </section>
+
+  <!-- AI Settings -->
+  <div class="ai-settings">
+    <button class="ai-settings-toggle" id="ai-settings-btn">
+      &#9881; AI機能設定
+    </button>
+    <div class="ai-settings-body" id="ai-settings-body">
+      <div class="ai-key-row">
+        <label for="gemini-key">Gemini API Key:</label>
+        <input type="password" id="gemini-key" placeholder="AIzaSy...">
+      </div>
+      <div class="ai-key-hint">
+        ナラティブ検索・AIサマリーに必要です。キーはブラウザにのみ保存されます。
+        <a href="https://aistudio.google.com/apikey" target="_blank">API Keyを取得</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend" id="legend" style="display:none">
+    <span class="legend-title">エビデンスレベル:</span>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <span>6データベースを横断検索中...</span>
+  </div>
+
+  <div id="translated-info" class="translated-info" style="display:none"></div>
+  <div id="summary"></div>
+
+  <!-- AI Summary -->
+  <div class="ai-summary" id="ai-summary">
+    <div class="ai-summary-header">
+      &#129302; AIエビデンスサマリー
+    </div>
+    <div class="ai-summary-body" id="ai-summary-body">
+      <div class="ai-summary-loading">
+        <div class="spinner"></div>
+        AIが検索結果を分析中...
+      </div>
+    </div>
+  </div>
+
+  <!-- National Guidelines Section -->
+  <div class="national-gl-section" id="national-gl-section">
+    <div class="ngl-header">
+      <span class="ngl-icon">&#128218;</span>
+      <div>
+        <div class="ngl-title">国内診療ガイドライン</div>
+        <div class="ngl-subtitle">学会公式ガイドラインからの該当情報</div>
+      </div>
+      <span class="ngl-count" id="ngl-count">0件</span>
+    </div>
+    <div class="ngl-items" id="ngl-items"></div>
+    <div class="ngl-more" id="ngl-more" style="display:none"></div>
+  </div>
+
+  <!-- Clinical Questions Section -->
+  <div class="cq-section" id="cq-section">
+    <div class="cq-header">
+      <span class="cq-icon">&#128269;</span>
+      <div>
+        <div class="cq-title">Clinical Questions</div>
+        <div class="cq-subtitle">ガイドラインの推奨・エビデンスレベル</div>
+      </div>
+      <span class="cq-count" id="cq-count">0件</span>
+    </div>
+    <div class="cq-items" id="cq-items"></div>
+    <div class="cq-more" id="cq-more" style="display:none"></div>
+  </div>
+
+  <!-- Patient Voice Section -->
+  <div class="patient-voice-section" id="patient-voice-section">
+    <div class="pv-header">
+      <span class="pv-icon">&#128483;</span>
+      <div>
+        <div class="pv-title">患者の声 &#183; Patient Voice</div>
+        <div class="pv-subtitle">質的研究・患者報告アウトカム・当事者の体験</div>
+      </div>
+      <span class="pv-count" id="pv-count">0件</span>
+    </div>
+    <div class="pv-items" id="pv-items"></div>
+    <div class="pv-more" id="pv-more" style="display:none"></div>
+  </div>
+
+  <div class="pyramid" id="pyramid">
+    <div class="pyramid-title">エビデンスピラミッド</div>
+    <div id="pyramid-bars"></div>
+  </div>
+
+  <div class="toolbar" id="toolbar">
+    <div class="sort-group">
+      <span>並べ替え:</span>
+      <button class="tb-btn active" data-sort="relevance">関連度</button>
+      <button class="tb-btn" data-sort="year-desc">年 ↓</button>
+      <button class="tb-btn" data-sort="year-asc">年 ↑</button>
+      <button class="tb-btn" data-sort="cite-desc">引用数 ↓</button>
+    </div>
+    <div class="export-group">
+      <span>出力:</span>
+      <button class="tb-btn" id="export-csv">CSV</button>
+      <button class="tb-btn" id="export-bib">BibTeX</button>
+    </div>
+  </div>
+  <div id="results"></div>
+</main>
+
+<footer>
+  Evidence Navigator v2.0 —
+  <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PubMed</a> +
+  <a href="https://www.jstage.jst.go.jp/" target="_blank">J-STAGE</a> +
+  <a href="https://www.semanticscholar.org/" target="_blank">Semantic Scholar</a> +
+  <a href="https://openalex.org/" target="_blank">OpenAlex</a> +
+  <a href="https://cir.nii.ac.jp/" target="_blank">CiNii</a> +
+  <a href="https://europepmc.org/" target="_blank">Europe PMC</a>
+</footer>
+
+<script>
+// ── Configuration ─────────────────────────────────────────────
+const WORKER_URL = location.hostname === 'mizuking796.github.io'
+  ? 'https://shintai.mizuki-tools.workers.dev'
+  : 'http://localhost:8787';
+
+const EV = {
+  guideline:      { label: 'ガイドライン',         color: '#7c3aed', abbr: 'GL'  },
+  sr_ma:          { label: 'SR / メタアナリシス',   color: '#0d9488', abbr: 'SR'  },
+  rct:            { label: 'RCT',                   color: '#059669', abbr: 'RCT' },
+  clinical_trial: { label: '臨床試験',              color: '#2563eb', abbr: 'CT'  },
+  observational:  { label: '観察研究',              color: '#d97706', abbr: 'OBS' },
+  case_report:    { label: 'ケースレポート',        color: '#0284c7', abbr: 'CR'  },
+  review:         { label: 'レビュー',              color: '#64748b', abbr: 'REV' },
+  other:          { label: 'その他',                color: '#94a3b8', abbr: '—'   },
+};
+const EV_ORDER = Object.keys(EV);
+
+// ── DOM ───────────────────────────────────────────────────────
+const $ = s => document.querySelector(s);
+const diseaseInput    = $('#disease');
+const treatmentInput  = $('#treatment');
+const topicInput      = $('#topic');
+const multilingualCb  = $('#multilingual');
+const patientVoiceCb  = $('#patient-voice');
+const searchBtn       = $('#search-btn');
+const resultsEl       = $('#results');
+const loadingEl       = $('#loading');
+const summaryEl       = $('#summary');
+const legendEl        = $('#legend');
+const translatedEl    = $('#translated-info');
+const geminiKeyInput  = $('#gemini-key');
+const aiSummaryEl     = $('#ai-summary');
+const aiSummaryBody   = $('#ai-summary-body');
+const nglSection      = $('#national-gl-section');
+const nglItemsEl      = $('#ngl-items');
+const nglCountEl      = $('#ngl-count');
+const cqSection       = $('#cq-section');
+const cqItemsEl       = $('#cq-items');
+const cqCountEl       = $('#cq-count');
+const pvSection       = $('#patient-voice-section');
+const pvItemsEl       = $('#pv-items');
+const pvCountEl       = $('#pv-count');
+
+// ── MeSH Autocomplete ────────────────────────────────────────
+let meshTimer = null;
+
+function initAutocomplete(input, dropdown) {
+  input.addEventListener('input', () => {
+    clearTimeout(meshTimer);
+    const q = input.value.trim();
+    if (q.length < 2 || /[\u3000-\u9FFF]/.test(q)) {
+      // Hide for short input or Japanese characters
+      dropdown.style.display = 'none';
+      return;
+    }
+    meshTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${WORKER_URL}/api/mesh?q=${encodeURIComponent(q)}`);
+        const items = await res.json();
+        if (items.length) {
+          dropdown.innerHTML = items
+            .map(s => `<div class="ac-item">${esc(s)}</div>`)
+            .join('');
+          dropdown.style.display = 'block';
+          dropdown.querySelectorAll('.ac-item').forEach(el => {
+            el.addEventListener('mousedown', e => {
+              e.preventDefault();
+              input.value = el.textContent;
+              dropdown.style.display = 'none';
+            });
+          });
+        } else {
+          dropdown.style.display = 'none';
+        }
+      } catch {
+        dropdown.style.display = 'none';
+      }
+    }, 300);
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => (dropdown.style.display = 'none'), 200);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') dropdown.style.display = 'none';
+    if (e.key === 'Enter') { dropdown.style.display = 'none'; doSearch(); }
+  });
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Search ────────────────────────────────────────────────────
+let abortCtrl = null;
+let lastData = null;  // stored for sort/export
+
+function getApiKey() {
+  return geminiKeyInput.value.trim() || localStorage.getItem('geminiKey') || '';
+}
+
+async function doSearch() {
+  const disease   = diseaseInput.value.trim();
+  const treatment = treatmentInput.value.trim();
+  const topic     = topicInput.value.trim();
+  if (!disease && !treatment && !topic) return;
+
+  await executeSearch({ disease, treatment, topic });
+}
+
+function resetUI() {
+  resultsEl.innerHTML = '';
+  summaryEl.innerHTML = '';
+  legendEl.style.display = 'none';
+  translatedEl.style.display = 'none';
+  aiSummaryEl.style.display = 'none';
+  nglSection.style.display = 'none';
+  cqSection.style.display = 'none';
+  pvSection.style.display = 'none';
+  $('#pyramid').style.display = 'none';
+  $('#toolbar').style.display = 'none';
+}
+
+async function executeSearch({ disease, treatment, topic }) {
+  if (!disease && !treatment && !topic) return;
+
+  // Abort previous
+  if (abortCtrl) abortCtrl.abort();
+  abortCtrl = new AbortController();
+
+  const multilingual = multilingualCb.checked;
+  const patientVoice = patientVoiceCb.checked;
+
+  searchBtn.disabled = true;
+  loadingEl.style.display = 'flex';
+  loadingEl.querySelector('span').textContent =
+    multilingual ? '多言語検索中（翻訳 + 6DB横断）...' : '6データベースを横断検索中...';
+  resetUI();
+
+  try {
+    const params = new URLSearchParams();
+    if (disease)   params.set('disease', disease);
+    if (treatment) params.set('treatment', treatment);
+    if (topic)     params.set('topic', topic);
+    if (multilingual) params.set('multilingual', 'true');
+    if (patientVoice) params.set('patientVoice', 'true');
+
+    const res = await fetch(`${WORKER_URL}/api/search?${params}`, {
+      signal: abortCtrl.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    lastData = data;
+    renderLegend();
+    renderTranslated(data.multilingual);
+    renderSummary(data);
+    renderNationalGuidelines(data.nationalGuidelines);
+    renderClinicalQuestions(data.clinicalQuestions);
+    renderPatientVoice(data.patientVoice);
+    renderPyramid(data.results);
+    renderResults(data.results);
+    showToolbar();
+
+    history.replaceState(null, '', `?${params}`);
+
+    // Async: AI Summary (non-blocking)
+    const apiKey = getApiKey();
+    if (apiKey && data.totalCount > 0) {
+      requestAISummary(data, apiKey);
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    resultsEl.innerHTML =
+      `<div class="error-msg">検索エラー: ${esc(e.message)}<br>` +
+      `Worker（<code>${esc(WORKER_URL)}</code>）が起動しているか確認してください。</div>`;
+  } finally {
+    searchBtn.disabled = false;
+    loadingEl.style.display = 'none';
+  }
+}
+
+// ── AI Summary (async, non-blocking) ─────────────────────────
+async function requestAISummary(data, apiKey) {
+  aiSummaryEl.style.display = 'block';
+  aiSummaryBody.innerHTML =
+    '<div class="ai-summary-loading"><div class="spinner"></div>AIが検索結果を分析中...</div>';
+
+  try {
+    const res = await fetch(`${WORKER_URL}/api/ai/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        results: data.results,
+        query: data.query,
+        apiKey,
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+    if (result.error) throw new Error(result.error);
+
+    // Convert markdown-like formatting to HTML
+    const html = result.summary
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^- /gm, '&bull; ')
+      .replace(/\n/g, '<br>');
+    aiSummaryBody.innerHTML = html +
+      '<div class="ai-summary-note">※ 論文タイトルからの推察であり、全文レビューではありません。</div>';
+  } catch (e) {
+    aiSummaryBody.innerHTML =
+      `<div style="color:#dc2626;font-size:.8rem">AIサマリー生成エラー: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── National Guidelines Render ────────────────────────────────
+function renderNationalGuidelines(items) {
+  if (!items || !items.length) {
+    nglSection.style.display = 'none';
+    return;
+  }
+
+  nglSection.style.display = 'block';
+  nglCountEl.textContent = `${items.length}件`;
+
+  const showLimit = 5;
+  const visible = items.slice(0, showLimit);
+  const hidden = items.slice(showLimit);
+
+  nglItemsEl.innerHTML = visible.map(gl => `
+    <div class="ngl-card">
+      <div class="card-title">
+        <span class="ngl-cat">${esc(gl.category)}</span>
+        <a href="${esc(gl.url)}" target="_blank" rel="noopener">${esc(gl.title)}</a>
+      </div>
+      <div class="ngl-org">${esc(gl.organization)}（${gl.year || ''}）</div>
+    </div>`).join('');
+
+  const nglMore = $('#ngl-more');
+  if (hidden.length > 0) {
+    nglMore.textContent = `+ ${hidden.length}件をさらに表示`;
+    nglMore.style.display = 'block';
+    nglMore.onclick = () => {
+      nglItemsEl.innerHTML += hidden.map(gl => `
+        <div class="ngl-card">
+          <div class="card-title">
+            <span class="ngl-cat">${esc(gl.category)}</span>
+            <a href="${esc(gl.url)}" target="_blank">${esc(gl.title)}</a>
+          </div>
+          <div class="ngl-org">${esc(gl.organization)}（${gl.year || ''}）</div>
+        </div>`).join('');
+      nglMore.style.display = 'none';
+    };
+  } else {
+    nglMore.style.display = 'none';
+  }
+}
+
+// ── Clinical Questions Render ─────────────────────────────────
+function renderClinicalQuestions(items) {
+  if (!items || !items.length) {
+    cqSection.style.display = 'none';
+    return;
+  }
+
+  cqSection.style.display = 'block';
+  cqCountEl.textContent = `${items.length}件`;
+
+  const showLimit = 5;
+  const visible = items.slice(0, showLimit);
+  const hidden = items.slice(showLimit);
+
+  cqItemsEl.innerHTML = visible.map(renderCQCard).join('');
+
+  const cqMore = $('#cq-more');
+  if (hidden.length > 0) {
+    cqMore.textContent = `+ ${hidden.length}件をさらに表示`;
+    cqMore.style.display = 'block';
+    cqMore.onclick = () => {
+      cqItemsEl.innerHTML += hidden.map(renderCQCard).join('');
+      cqMore.style.display = 'none';
+    };
+  } else {
+    cqMore.style.display = 'none';
+  }
+}
+
+function renderCQCard(cq) {
+  const evClass = cq.evidenceLevel === '-' ? 'cq-ev-na' : `cq-ev-${cq.evidenceLevel}`;
+  const evLabel = cq.evidenceLevel === '-' ? '-' : cq.evidenceLevel;
+  return `
+    <div class="cq-card">
+      <div class="cq-card-top">
+        <span class="cq-num">${esc(cq.cq)}</span>
+        <span class="cq-type">${esc(cq.type)}</span>
+        <span class="cq-ev-badge ${evClass}" title="エビデンスの強さ">${evLabel}</span>
+        <span class="cq-rec">${esc(cq.recommendation)}</span>
+      </div>
+      <div class="cq-question">${esc(cq.question)}</div>
+      <div class="cq-gl-info">
+        <a href="${esc(cq.guidelineUrl)}" target="_blank" rel="noopener">${esc(cq.guidelineTitle)}</a>
+        ${cq.guidelineOrg ? '(' + esc(cq.guidelineOrg) + ')' : ''}
+      </div>
+    </div>`;
+}
+
+// ── Patient Voice Render ─────────────────────────────────────
+function renderPatientVoice(items) {
+  if (!items || !items.length) {
+    pvSection.style.display = 'none';
+    return;
+  }
+
+  pvSection.style.display = 'block';
+  pvCountEl.textContent = `${items.length}件`;
+
+  const showLimit = 5;
+  const visible = items.slice(0, showLimit);
+  const hidden = items.slice(showLimit);
+
+  pvItemsEl.innerHTML = visible.map(item => {
+    const srcMap = {
+      'PubMed': 'src-pubmed', 'J-STAGE': 'src-jstage', 'Semantic Scholar': 'src-s2',
+      'OpenAlex': 'src-openalex', 'CiNii': 'src-cinii', 'Europe PMC': 'src-epmc',
+    };
+    const srcName = s => s === 'Semantic Scholar' ? 'S2' : s === 'Europe PMC' ? 'EPMC' : s;
+    const sources = item.foundIn || [item.source];
+    let tags = sources.map(s =>
+      `<span class="tag ${srcMap[s] || ''}">${srcName(s)}</span>`
+    ).join('');
+    if (item.year) tags += `<span class="tag">${item.year}</span>`;
+    if (item.citations) tags += `<span class="tag tag-cite">cited: ${item.citations}</span>`;
+
+    const authors = item.authors?.length
+      ? item.authors.join(', ') + (item.authors.length >= 5 ? ' et al.' : '')
+      : '';
+
+    return `
+      <div class="pv-card">
+        <div class="card-title">
+          <a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title)}</a>
+        </div>
+        <div class="card-meta">
+          <span class="card-authors">${esc(authors)}</span>
+          <span class="card-journal">${esc(item.journal || '')}</span>
+        </div>
+        <div class="card-tags">${tags}</div>
+      </div>`;
+  }).join('');
+
+  const pvMore = $('#pv-more');
+  if (hidden.length > 0) {
+    pvMore.textContent = `+ ${hidden.length}件をさらに表示`;
+    pvMore.style.display = 'block';
+    pvMore.onclick = () => {
+      pvItemsEl.innerHTML += hidden.map(item => {
+        const authors = item.authors?.length ? item.authors.join(', ') : '';
+        return `<div class="pv-card">
+          <div class="card-title"><a href="${esc(item.url)}" target="_blank">${esc(item.title)}</a></div>
+          <div class="card-meta">${esc(authors)} ${esc(item.journal || '')} ${item.year || ''}</div>
+        </div>`;
+      }).join('');
+      pvMore.style.display = 'none';
+    };
+  } else {
+    pvMore.style.display = 'none';
+  }
+}
+
+// ── Render Legend ──────────────────────────────────────────────
+function renderLegend() {
+  legendEl.style.display = 'flex';
+  if (legendEl.dataset.built) return;
+  legendEl.dataset.built = '1';
+
+  for (let i = 0; i < EV_ORDER.length; i++) {
+    const info = EV[EV_ORDER[i]];
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'legend-sep';
+      sep.textContent = '>';
+      legendEl.appendChild(sep);
+    }
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    item.innerHTML =
+      `<span class="legend-dot" style="background:${info.color}"></span>${info.label}`;
+    legendEl.appendChild(item);
+  }
+}
+
+// ── Render Translation Info ───────────────────────────────────
+function renderTranslated(ml) {
+  if (!ml || !ml.translated) {
+    translatedEl.style.display = 'none';
+    return;
+  }
+  const { disease, treatment, topic } = ml.translated;
+  const parts = [];
+  if (disease)   parts.push(`疾患名: <span>${esc(disease)}</span>`);
+  if (treatment) parts.push(`治療法: <span>${esc(treatment)}</span>`);
+  if (topic)     parts.push(`関心事項: <span>${esc(topic)}</span>`);
+  if (parts.length) {
+    translatedEl.innerHTML = '翻訳検索語 → ' + parts.join(' / ');
+    translatedEl.style.display = 'block';
+  } else {
+    translatedEl.style.display = 'none';
+  }
+}
+
+// ── Render Summary ────────────────────────────────────────────
+function renderSummary(data) {
+  const { totalCount, sources } = data;
+  const srcNames = [
+    ['pubmed', 'PubMed'], ['jstage', 'J-STAGE'], ['s2', 'S2'],
+    ['openalex', 'OpenAlex'], ['cinii', 'CiNii'], ['epmc', 'EPMC'],
+  ];
+  let html = `<span class="total">${totalCount}件</span>`;
+  for (const [key, name] of srcNames) {
+    if (sources[key]) html += `<span class="src">${name}: ${sources[key]}件</span>`;
+  }
+  const errors = sources.errors || {};
+  for (const [key, msg] of Object.entries(errors)) {
+    if (msg) html += `<span class="src-err">${key}: ${esc(msg)}</span>`;
+  }
+  summaryEl.innerHTML = html;
+}
+
+// ── Render Results ────────────────────────────────────────────
+function renderResults(grouped) {
+  let html = '';
+  let hasAny = false;
+
+  for (const level of EV_ORDER) {
+    const items = grouped[level] || [];
+    if (!items.length) continue;
+    hasAny = true;
+
+    const info = EV[level];
+    // Auto-open top 3 evidence levels
+    const open = ['guideline', 'sr_ma', 'rct'].includes(level) ? 'open' : '';
+
+    html += `
+      <details class="ev-group" ${open}>
+        <summary style="border-left-color:${info.color}">
+          <span class="ev-badge" style="background:${info.color}">${info.abbr}</span>
+          <span class="ev-label">${info.label}</span>
+          <span class="ev-count">${items.length}件</span>
+        </summary>
+        <div class="ev-items">
+          ${items.map(renderCard).join('')}
+        </div>
+      </details>`;
+  }
+
+  if (!hasAny) {
+    html = '<div class="no-results">該当する文献が見つかりませんでした。<br>検索語を変えてお試しください。</div>';
+  }
+
+  resultsEl.innerHTML = html;
+}
+
+function renderCard(item, prefixBadge) {
+  const authors = item.authors.length
+    ? item.authors.join(', ') + (item.authors.length >= 5 ? ' et al.' : '')
+    : '';
+  const year = item.year ? `(${item.year})` : '';
+  const srcMap = {
+    'PubMed': 'src-pubmed', 'J-STAGE': 'src-jstage', 'Semantic Scholar': 'src-s2',
+    'OpenAlex': 'src-openalex', 'CiNii': 'src-cinii', 'Europe PMC': 'src-epmc',
+  };
+  const srcName = s => s === 'Semantic Scholar' ? 'S2' : s === 'Europe PMC' ? 'EPMC' : s;
+  const sources = item.foundIn || [item.source];
+
+  let tags = sources.map(s =>
+    `<span class="tag ${srcMap[s] || ''}">${srcName(s)}</span>`
+  ).join('');
+  if (item.citations)
+    tags += `<span class="tag tag-cite">cited: ${item.citations}</span>`;
+  if (item.doi)
+    tags += `<span class="tag tag-doi">DOI</span>`;
+  for (const pt of (item.pubTypes || [])) {
+    tags += `<span class="tag">${esc(pt)}</span>`;
+  }
+
+  return `
+    <div class="card">
+      <div class="card-title">
+        ${prefixBadge || ""}<a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title)}</a>
+      </div>
+      <div class="card-meta">
+        <span class="card-authors">${esc(authors)}</span>
+        <span class="card-journal">${esc(item.journal)} ${year}</span>
+      </div>
+      <div class="card-tags">${tags}</div>
+    </div>`;
+}
+
+
+// ── Pyramid ──────────────────────────────────────────────────
+function renderPyramid(grouped) {
+  const pyramidEl = $('#pyramid');
+  const barsEl = $('#pyramid-bars');
+  const counts = EV_ORDER.map(level => (grouped[level] || []).length);
+  const max = Math.max(...counts, 1);
+
+  if (counts.every(c => c === 0)) {
+    pyramidEl.style.display = 'none';
+    return;
+  }
+
+  let html = '';
+  for (let i = 0; i < EV_ORDER.length; i++) {
+    const info = EV[EV_ORDER[i]];
+    const count = counts[i];
+    const pct = (count / max) * 100;
+    html += `
+      <div class="pyramid-row">
+        <div class="pyramid-label">${info.abbr}</div>
+        <div class="pyramid-bar-bg">
+          <div class="pyramid-bar" style="width:${pct}%;background:${info.color}"></div>
+        </div>
+        <div class="pyramid-val">${count}件</div>
+      </div>`;
+  }
+  barsEl.innerHTML = html;
+  pyramidEl.style.display = 'block';
+}
+
+// ── Toolbar ──────────────────────────────────────────────────
+let currentSort = 'relevance';
+
+function showToolbar() {
+  $('#toolbar').style.display = 'flex';
+}
+
+function sortResults(mode) {
+  if (!lastData) return;
+  currentSort = mode;
+
+  // Update active button
+  document.querySelectorAll('.sort-group .tb-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.sort === mode);
+  });
+
+  const grouped = lastData.results;
+  if (mode === 'relevance') {
+    // Default: grouped by evidence level, newest first within each group
+    renderResults(grouped);
+    return;
+  }
+
+  // Flatten all results
+  const flat = [];
+  for (const level of EV_ORDER) {
+    for (const item of (grouped[level] || [])) {
+      flat.push({ ...item, _level: level });
+    }
+  }
+
+  // Sort
+  if (mode === 'year-desc') flat.sort((a, b) => (b.year || 0) - (a.year || 0));
+  if (mode === 'year-asc')  flat.sort((a, b) => (a.year || 0) - (b.year || 0));
+  if (mode === 'cite-desc') flat.sort((a, b) => (b.citations || 0) - (a.citations || 0));
+
+  // Render as flat list with inline evidence badges
+  renderFlatResults(flat);
+}
+
+function renderFlatResults(items) {
+  if (!items.length) {
+    resultsEl.innerHTML = '<div class="no-results">該当する文献が見つかりませんでした。</div>';
+    return;
+  }
+  resultsEl.innerHTML = '<div class="ev-items" style="background:#fff;border-radius:8px;padding:.5rem">'
+    + items.map(item => {
+      const info = EV[item.evidenceLevel || item._level || 'other'];
+      const badge = `<span class="ev-badge" style="background:${info.color};font-size:.65rem;padding:.1rem .35rem;vertical-align:middle;margin-right:.3rem">${info.abbr}</span>`;
+      return renderCard(item, badge);
+    }).join('')
+    + '</div>';
+}
+
+// ── Export ────────────────────────────────────────────────────
+function getAllItems() {
+  if (!lastData) return [];
+  const items = [];
+  for (const level of EV_ORDER) {
+    for (const item of (lastData.results[level] || [])) {
+      items.push({ ...item, _level: level });
+    }
+  }
+  return items;
+}
+
+function exportCSV() {
+  const items = getAllItems();
+  if (!items.length) return;
+
+  const header = 'Title,Authors,Journal,Year,Evidence Level,Sources,DOI,Citations,URL';
+  const rows = items.map(item => {
+    const fields = [
+      item.title,
+      (item.authors || []).join('; '),
+      item.journal,
+      item.year || '',
+      (EV[item.evidenceLevel] || EV.other).label,
+      (item.foundIn || [item.source]).join('; '),
+      item.doi || '',
+      item.citations || 0,
+      item.url || '',
+    ];
+    return fields.map(f => '"' + String(f).replace(/"/g, '""') + '"').join(',');
+  });
+
+  download('evidence-navigator.csv', '\uFEFF' + header + '\n' + rows.join('\n'), 'text/csv');
+}
+
+function exportBibTeX() {
+  const items = getAllItems();
+  if (!items.length) return;
+
+  const entries = items.map((item, i) => {
+    const key = item.doi
+      ? item.doi.replace(/[^a-zA-Z0-9]/g, '_')
+      : (item.id || 'entry' + i);
+    const authors = (item.authors || []).join(' and ');
+    const lines = [
+      `@article{${key},`,
+      `  title = {${item.title || ''}},`,
+    ];
+    if (authors) lines.push(`  author = {${authors}},`);
+    if (item.journal) lines.push(`  journal = {${item.journal}},`);
+    if (item.year) lines.push(`  year = {${item.year}},`);
+    if (item.doi) lines.push(`  doi = {${item.doi}},`);
+    if (item.url) lines.push(`  url = {${item.url}},`);
+    lines.push('}');
+    return lines.join('\n');
+  });
+
+  download('evidence-navigator.bib', entries.join('\n\n'), 'application/x-bibtex');
+}
+
+function download(filename, content, mime) {
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── AI Settings ──────────────────────────────────────────────
+function initAISettings() {
+  const btn = $('#ai-settings-btn');
+  const body = $('#ai-settings-body');
+  btn.addEventListener('click', () => body.classList.toggle('open'));
+
+  // Restore saved key
+  const savedKey = localStorage.getItem('geminiKey');
+  if (savedKey) geminiKeyInput.value = savedKey;
+
+  // Save key on change
+  geminiKeyInput.addEventListener('change', () => {
+    const key = geminiKeyInput.value.trim();
+    if (key) localStorage.setItem('geminiKey', key);
+    else localStorage.removeItem('geminiKey');
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────
+function init() {
+  initAutocomplete(diseaseInput, $('#disease-ac'));
+  initAutocomplete(treatmentInput, $('#treatment-ac'));
+  initAutocomplete(topicInput, $('#topic-ac'));
+  initAISettings();
+  searchBtn.addEventListener('click', doSearch);
+
+  // Sort buttons
+  document.querySelectorAll('.sort-group .tb-btn').forEach(btn => {
+    btn.addEventListener('click', () => sortResults(btn.dataset.sort));
+  });
+  // Export buttons
+  $('#export-csv').addEventListener('click', exportCSV);
+  $('#export-bib').addEventListener('click', exportBibTeX);
+
+  // Restore from URL params
+  const params = new URLSearchParams(location.search);
+  if (params.get('disease'))      diseaseInput.value = params.get('disease');
+  if (params.get('treatment'))    treatmentInput.value = params.get('treatment');
+  if (params.get('topic'))        topicInput.value = params.get('topic');
+  if (params.get('multilingual')) multilingualCb.checked = true;
+  if (params.get('disease') || params.get('treatment') || params.get('topic')) doSearch();
+}
+
+init();
+</script>
+</body>
+</html>
