@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Evidence Navigator — エビデンスに基づく医療文献検索</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -33,6 +34,144 @@
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 1px 3px rgba(0,0,0,.1);
+      overflow: hidden;
+    }
+    .search-mode-tabs {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: .5rem;
+    }
+    .mode-tab {
+      padding: .4rem 1rem;
+      border: none;
+      background: none;
+      font-size: .85rem;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all .2s;
+    }
+    .mode-tab.active {
+      color: #2563eb;
+      border-bottom-color: #2563eb;
+    }
+    .mode-tab:hover { color: #475569; }
+    .simple-search-row {
+      display: flex;
+      gap: .5rem;
+      position: relative;
+    }
+    .simple-search-row input {
+      flex: 1;
+      padding: .75rem 1rem;
+      border: 2px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .simple-search-row input:focus { border-color: #2563eb; }
+    .simple-search-row button {
+      padding: .75rem 1.5rem;
+      border-radius: 10px;
+    }
+    #q-ac {
+      position: absolute;
+      left: 0; right: 80px;
+      top: 100%;
+      z-index: 50;
+    }
+    .search-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .4rem;
+      margin-top: .6rem;
+    }
+    .chip {
+      padding: .25rem .7rem;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      font-size: .75rem;
+      color: #475569;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .chip:hover { background: #e0e7ff; border-color: #818cf8; color: #3730a3; }
+    .browse-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .8rem;
+    }
+    .browse-header span { font-size: .85rem; color: #475569; }
+    .browse-header select {
+      padding: .4rem .8rem;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: .8rem;
+    }
+    #browse-list { max-height: 70vh; overflow-y: auto; }
+    .browse-gl {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin-bottom: .6rem;
+      overflow: hidden;
+    }
+    .browse-gl-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .6rem .8rem;
+      background: #f8fafc;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      color: #1e293b;
+      min-width: 0;
+    }
+    .browse-gl-header:hover { background: #f1f5f9; }
+    .browse-gl-header > span:first-child {
+      min-width: 0;
+      flex: 1;
+      margin-right: .5rem;
+    }
+    .browse-gl-badge {
+      background: #ede9fe;
+      color: #6d28d9;
+      font-size: .7rem;
+      padding: .1rem .5rem;
+      border-radius: 10px;
+    }
+    .browse-gl-body { display: none; padding: .5rem .8rem; }
+    .browse-gl.open .browse-gl-body { display: block; }
+    .browse-cq {
+      padding: .35rem 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: .8rem;
+      display: flex;
+      gap: .5rem;
+      align-items: baseline;
+    }
+    .browse-cq:last-child { border-bottom: none; }
+    .browse-cq:hover { background: #f1f5f9; border-radius: 4px; }
+    .browse-cq-num {
+      font-weight: 600;
+      color: #6d28d9;
+      min-width: 60px;
+      flex-shrink: 0;
+    }
+    .browse-cq-q { color: #334155; flex: 1; min-width: 0; word-break: break-word; }
+    .browse-cq-ev {
+      font-size: .65rem;
+      font-weight: 700;
+      padding: .1rem .3rem;
+      border-radius: 3px;
+      flex-shrink: 0;
     }
     .search-fields {
       display: grid;
@@ -287,6 +426,37 @@
     .src-openalex { background: #e0e7ff; color: #3730a3; }
     .src-cinii  { background: #fef9c3; color: #854d0e; }
     .tag-doi    { background: #fef3c7; color: #92400e; }
+    .tl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .25rem;
+      padding: .3rem .7rem;
+      border-radius: 6px;
+      font-size: .75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: all .15s;
+      vertical-align: middle;
+      margin-left: .4rem;
+      box-shadow: 0 1px 3px rgba(37,99,235,.3);
+      white-space: nowrap;
+    }
+    .tl-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(37,99,235,.4); }
+    .tl-text {
+      display: block;
+      margin: .5rem -.8rem -.2rem;
+      padding: .6rem 1rem;
+      font-size: .88rem;
+      color: #1e293b;
+      line-height: 1.55;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-radius: 6px;
+      border-left: 4px solid #0ea5e9;
+      font-weight: 500;
+    }
     .tag-cite   { background: #f0fdf4; color: #166534; }
 
     .src-epmc   { background: #e8e0f0; color: #5b21b6; }
@@ -603,8 +773,9 @@
       border-radius: 8px;
       border-left: 3px solid #8b5cf6;
       transition: background .15s;
+      cursor: pointer;
     }
-    .cq-card:hover { background: rgba(255,255,255,.95); }
+    .cq-card:hover { background: rgba(255,255,255,.95); box-shadow: 0 1px 4px rgba(139,92,246,.2); }
     .cq-card-top {
       display: flex;
       align-items: center;
@@ -660,6 +831,16 @@
     }
     .cq-gl-info a { color: #6d28d9; text-decoration: none; }
     .cq-gl-info a:hover { text-decoration: underline; }
+    .cq-page-link {
+      display: inline-block;
+      background: #ede9fe;
+      color: #6d28d9;
+      font-size: .65rem;
+      padding: 0 .35rem;
+      border-radius: 3px;
+      margin-left: .3rem;
+      font-weight: 600;
+    }
     .cq-more {
       margin-top: .5rem;
       text-align: center;
@@ -746,53 +927,118 @@
 </head>
 <body>
 
-<header>
+<header style="cursor:pointer" onclick="location.href=location.pathname">
   <h1>Evidence Navigator</h1>
-  <p>エビデンスに基づく医療文献検索 — 6データベース横断検索</p>
+  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン211件 + CQ1414件</p>
 </header>
 
 <main>
   <section class="search-panel">
-    <div class="search-fields">
-      <div class="field">
-        <label for="disease">疾患名</label>
-        <input type="text" id="disease"
-               placeholder="例: 変形性膝関節症, Osteoarthritis"
+    <!-- Mode tabs -->
+    <div class="search-mode-tabs">
+      <button class="mode-tab active" data-mode="simple" id="tab-simple">検索</button>
+      <button class="mode-tab" data-mode="advanced" id="tab-advanced">詳細検索</button>
+      <button class="mode-tab" data-mode="browse" id="tab-browse">CQブラウザ</button>
+    </div>
+
+    <!-- Simple search (1 box) -->
+    <div class="search-mode" id="mode-simple">
+      <div class="simple-search-row">
+        <input type="text" id="q-input"
+               placeholder="疾患名・治療法をスペース区切りで入力（例: 膝関節 運動療法）"
                autocomplete="off">
-        <div class="ac-dropdown" id="disease-ac"></div>
+        <button id="search-btn">検索</button>
       </div>
-      <div class="field">
-        <label for="treatment">治療法</label>
-        <input type="text" id="treatment"
-               placeholder="例: 運動療法, Exercise Therapy"
-               autocomplete="off">
-        <div class="ac-dropdown" id="treatment-ac"></div>
+      <div class="ac-dropdown" id="q-ac"></div>
+      <div class="search-chips" id="search-chips">
+        <span class="chip" data-q="脳卒中 離床">脳卒中 離床</span>
+        <span class="chip" data-q="腰痛 運動療法">腰痛 運動療法</span>
+        <span class="chip" data-q="心不全 リハビリ">心不全 リハビリ</span>
+        <span class="chip" data-q="嚥下障害 訓練">嚥下障害 訓練</span>
+        <span class="chip" data-q="変形性膝関節症 理学療法">膝OA 理学療法</span>
+        <span class="chip" data-q="がん リハビリテーション">がん リハ</span>
+        <span class="chip" data-q="認知症 運動">認知症 運動</span>
+        <span class="chip" data-q="慢性疼痛 治療">慢性疼痛</span>
       </div>
-      <div class="field">
-        <label for="topic">関心事項</label>
-        <input type="text" id="topic"
-               placeholder="例: 予後, 合併症, Prognosis"
-               autocomplete="off">
-        <div class="ac-dropdown" id="topic-ac"></div>
+      <div class="search-options">
+        <label>
+          <input type="checkbox" id="multilingual">
+          多言語検索
+          <span class="opt-desc">（自動翻訳で英語・日本語を横断検索）</span>
+        </label>
+        <label>
+          <input type="checkbox" id="patient-voice">
+          患者の声を含む
+          <span class="opt-desc">（質的研究・患者体験も検索）</span>
+        </label>
       </div>
     </div>
-    <div class="search-options">
-      <label>
-        <input type="checkbox" id="multilingual">
-        多言語検索
-        <span class="opt-desc">（自動翻訳で英語・日本語を横断検索）</span>
-      </label>
-      <label>
-        <input type="checkbox" id="patient-voice">
-        患者の声を含む
-        <span class="opt-desc">（質的研究・患者体験も検索）</span>
-      </label>
+
+    <!-- Advanced search (3 fields) -->
+    <div class="search-mode" id="mode-advanced" style="display:none">
+      <div class="search-fields">
+        <div class="field">
+          <label for="disease">疾患名</label>
+          <input type="text" id="disease"
+                 placeholder="例: 変形性膝関節症"
+                 autocomplete="off">
+          <div class="ac-dropdown" id="disease-ac"></div>
+        </div>
+        <div class="field">
+          <label for="treatment">治療法</label>
+          <input type="text" id="treatment"
+                 placeholder="例: 運動療法"
+                 autocomplete="off">
+          <div class="ac-dropdown" id="treatment-ac"></div>
+        </div>
+        <div class="field">
+          <label for="topic">関心事項</label>
+          <input type="text" id="topic"
+                 placeholder="例: 予後, 合併症"
+                 autocomplete="off">
+          <div class="ac-dropdown" id="topic-ac"></div>
+        </div>
+      </div>
+      <div class="search-options">
+        <label>
+          <input type="checkbox" id="multilingual-adv">
+          多言語検索
+        </label>
+        <label>
+          <input type="checkbox" id="patient-voice-adv">
+          患者の声を含む
+        </label>
+      </div>
+      <div class="search-actions">
+        <button id="search-btn-adv">検索</button>
+      </div>
     </div>
-    <div class="search-actions">
-      <button id="search-btn">検索</button>
-    </div>
-    <div class="search-hint">
-      MeSH用語の候補が自動表示されます（英語入力時）。日本語でも検索できます。
+
+    <!-- CQ Browser -->
+    <div class="search-mode" id="mode-browse" style="display:none">
+      <div style="position:relative">
+        <input type="text" id="browse-filter"
+               placeholder="CQをキーワードで絞り込み（例: 膝、歩行、嚥下）"
+               autocomplete="off"
+               style="width:100%;padding:.65rem 2.5rem .65rem .8rem;border:2px solid #cbd5e1;border-radius:10px;font-size:.95rem;outline:none;margin-bottom:.6rem;transition:border-color .2s">
+        <span id="browse-filter-clear" style="display:none;position:absolute;right:.8rem;top:.55rem;cursor:pointer;color:#94a3b8;font-size:1.2rem;line-height:1" title="クリア">&times;</span>
+      </div>
+      <div class="browse-header">
+        <span id="browse-stats"></span>
+        <select id="browse-cat">
+          <option value="">全カテゴリ</option>
+          <option value="PT">理学療法</option>
+          <option value="OT">作業療法</option>
+          <option value="ortho">整形外科</option>
+          <option value="neuro">神経内科</option>
+          <option value="cardio">循環器</option>
+          <option value="resp">呼吸器</option>
+          <option value="onco">がん</option>
+          <option value="ent">耳鼻科</option>
+          <option value="general">総合</option>
+        </select>
+      </div>
+      <div id="browse-list"></div>
     </div>
   </section>
 
@@ -819,7 +1065,7 @@
 
   <div id="loading">
     <div class="spinner"></div>
-    <span>6データベースを横断検索中...</span>
+    <span>検索中...</span>
   </div>
 
   <div id="translated-info" class="translated-info" style="display:none"></div>
@@ -932,12 +1178,14 @@ const EV_ORDER = Object.keys(EV);
 
 // ── DOM ───────────────────────────────────────────────────────
 const $ = s => document.querySelector(s);
+const qInput          = $('#q-input');
 const diseaseInput    = $('#disease');
 const treatmentInput  = $('#treatment');
 const topicInput      = $('#topic');
 const multilingualCb  = $('#multilingual');
 const patientVoiceCb  = $('#patient-voice');
 const searchBtn       = $('#search-btn');
+const searchBtnAdv    = $('#search-btn-adv');
 const resultsEl       = $('#results');
 const loadingEl       = $('#loading');
 const summaryEl       = $('#summary');
@@ -956,21 +1204,30 @@ const pvSection       = $('#patient-voice-section');
 const pvItemsEl       = $('#pv-items');
 const pvCountEl       = $('#pv-count');
 
-// ── MeSH Autocomplete ────────────────────────────────────────
-let meshTimer = null;
+// ── Suggest Autocomplete ─────────────────────────────────────
+let suggestTimer = null;
 
-function initAutocomplete(input, dropdown) {
+function initSuggest(input, dropdown, useLocalSuggest) {
   input.addEventListener('input', () => {
-    clearTimeout(meshTimer);
-    const q = input.value.trim();
-    if (q.length < 2 || /[\u3000-\u9FFF]/.test(q)) {
-      // Hide for short input or Japanese characters
-      dropdown.style.display = 'none';
-      return;
+    clearTimeout(suggestTimer);
+    const raw = input.value.trim();
+    // For simple search: use last word for suggestions
+    const words = raw.split(/\s+/);
+    const q = words[words.length - 1];
+    if (q.length < 1) { dropdown.style.display = 'none'; return; }
+
+    // 'auto' mode: Japanese → local suggest, English → MeSH
+    let useLocal = useLocalSuggest;
+    if (useLocalSuggest === 'auto') {
+      useLocal = /[\u3000-\u9FFF\u30A0-\u30FF\u3040-\u309F]/.test(q);
     }
-    meshTimer = setTimeout(async () => {
+
+    suggestTimer = setTimeout(async () => {
       try {
-        const res = await fetch(`${WORKER_URL}/api/mesh?q=${encodeURIComponent(q)}`);
+        const endpoint = useLocal
+          ? `${WORKER_URL}/api/suggest?q=${encodeURIComponent(q)}`
+          : `${WORKER_URL}/api/mesh?q=${encodeURIComponent(q)}`;
+        const res = await fetch(endpoint);
         const items = await res.json();
         if (items.length) {
           dropdown.innerHTML = items
@@ -980,7 +1237,13 @@ function initAutocomplete(input, dropdown) {
           dropdown.querySelectorAll('.ac-item').forEach(el => {
             el.addEventListener('mousedown', e => {
               e.preventDefault();
-              input.value = el.textContent;
+              if (useLocalSuggest && words.length > 1) {
+                // Replace last word with suggestion
+                words[words.length - 1] = el.textContent;
+                input.value = words.join(' ') + ' ';
+              } else {
+                input.value = el.textContent;
+              }
               dropdown.style.display = 'none';
             });
           });
@@ -990,7 +1253,7 @@ function initAutocomplete(input, dropdown) {
       } catch {
         dropdown.style.display = 'none';
       }
-    }, 300);
+    }, 200);
   });
 
   input.addEventListener('blur', () => {
@@ -1000,6 +1263,11 @@ function initAutocomplete(input, dropdown) {
     if (e.key === 'Escape') dropdown.style.display = 'none';
     if (e.key === 'Enter') { dropdown.style.display = 'none'; doSearch(); }
   });
+}
+
+// Advanced fields: use local suggest for Japanese, MeSH for English
+function initAutocomplete(input, dropdown) {
+  initSuggest(input, dropdown, 'auto');
 }
 
 function esc(s) {
@@ -1017,12 +1285,19 @@ function getApiKey() {
 }
 
 async function doSearch() {
-  const disease   = diseaseInput.value.trim();
-  const treatment = treatmentInput.value.trim();
-  const topic     = topicInput.value.trim();
-  if (!disease && !treatment && !topic) return;
-
-  await executeSearch({ disease, treatment, topic });
+  // Check which mode is active
+  const simpleMode = $('#mode-simple').style.display !== 'none';
+  if (simpleMode) {
+    const q = qInput.value.trim();
+    if (!q) return;
+    await executeSearch({ q });
+  } else {
+    const disease   = diseaseInput.value.trim();
+    const treatment = treatmentInput.value.trim();
+    const topic     = topicInput.value.trim();
+    if (!disease && !treatment && !topic) return;
+    await executeSearch({ disease, treatment, topic });
+  }
 }
 
 function resetUI() {
@@ -1038,24 +1313,29 @@ function resetUI() {
   $('#toolbar').style.display = 'none';
 }
 
-async function executeSearch({ disease, treatment, topic }) {
-  if (!disease && !treatment && !topic) return;
+async function executeSearch({ q, disease, treatment, topic }) {
+  if (!q && !disease && !treatment && !topic) return;
 
   // Abort previous
   if (abortCtrl) abortCtrl.abort();
   abortCtrl = new AbortController();
 
-  const multilingual = multilingualCb.checked;
-  const patientVoice = patientVoiceCb.checked;
+  const simpleMode = !!q;
+  const mlCb = simpleMode ? multilingualCb : $('#multilingual-adv');
+  const pvCb = simpleMode ? patientVoiceCb : $('#patient-voice-adv');
+  const multilingual = mlCb ? mlCb.checked : false;
+  const patientVoice = pvCb ? pvCb.checked : false;
+  const btn = simpleMode ? searchBtn : searchBtnAdv;
 
-  searchBtn.disabled = true;
+  if (btn) btn.disabled = true;
   loadingEl.style.display = 'flex';
   loadingEl.querySelector('span').textContent =
-    multilingual ? '多言語検索中（翻訳 + 6DB横断）...' : '6データベースを横断検索中...';
+    multilingual ? '多言語横断検索中...' : '検索中...';
   resetUI();
 
   try {
     const params = new URLSearchParams();
+    if (q) params.set('q', q);
     if (disease)   params.set('disease', disease);
     if (treatment) params.set('treatment', treatment);
     if (topic)     params.set('topic', topic);
@@ -1077,7 +1357,7 @@ async function executeSearch({ disease, treatment, topic }) {
     renderNationalGuidelines(data.nationalGuidelines);
     renderClinicalQuestions(data.clinicalQuestions);
     renderPatientVoice(data.patientVoice);
-    renderPyramid(data.results);
+    renderPyramid(data.results, data.nationalGuidelines, data.clinicalQuestions);
     renderResults(data.results);
     showToolbar();
 
@@ -1094,7 +1374,7 @@ async function executeSearch({ disease, treatment, topic }) {
       `<div class="error-msg">検索エラー: ${esc(e.message)}<br>` +
       `Worker（<code>${esc(WORKER_URL)}</code>）が起動しているか確認してください。</div>`;
   } finally {
-    searchBtn.disabled = false;
+    if (btn) btn.disabled = false;
     loadingEl.style.display = 'none';
   }
 }
@@ -1207,8 +1487,9 @@ function renderClinicalQuestions(items) {
 function renderCQCard(cq) {
   const evClass = cq.evidenceLevel === '-' ? 'cq-ev-na' : `cq-ev-${cq.evidenceLevel}`;
   const evLabel = cq.evidenceLevel === '-' ? '-' : cq.evidenceLevel;
+  const href = cq.guidelineUrl ? `${esc(cq.guidelineUrl)}${cq.page ? '#page=' + cq.page : ''}` : '';
   return `
-    <div class="cq-card">
+    <a class="cq-card" ${href ? `href="${href}" target="_blank" rel="noopener"` : ''} style="display:block;text-decoration:none;color:inherit">
       <div class="cq-card-top">
         <span class="cq-num">${esc(cq.cq)}</span>
         <span class="cq-type">${esc(cq.type)}</span>
@@ -1217,10 +1498,11 @@ function renderCQCard(cq) {
       </div>
       <div class="cq-question">${esc(cq.question)}</div>
       <div class="cq-gl-info">
-        <a href="${esc(cq.guidelineUrl)}" target="_blank" rel="noopener">${esc(cq.guidelineTitle)}</a>
+        ${esc(cq.guidelineTitle)}
         ${cq.guidelineOrg ? '(' + esc(cq.guidelineOrg) + ')' : ''}
+        ${cq.page ? '<span class="cq-page-link">p.' + cq.page + '</span>' : ''}
       </div>
-    </div>`;
+    </a>`;
 }
 
 // ── Patient Voice Render ─────────────────────────────────────
@@ -1254,10 +1536,15 @@ function renderPatientVoice(items) {
       ? item.authors.join(', ') + (item.authors.length >= 5 ? ' et al.' : '')
       : '';
 
+    const pvTid = 'tl-' + Math.random().toString(36).slice(2, 8);
+    const pvIsJa = /[\u3000-\u9FFF\u30A0-\u30FF\u3040-\u309F]/.test(item.title);
+    const pvTlLabel = pvIsJa ? '&#127468;&#127463; English' : '&#127471;&#127477; 日本語訳';
     return `
       <div class="pv-card">
         <div class="card-title">
           <a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title)}</a>
+          <span class="tl-btn" data-tid="${pvTid}" data-title="${esc(item.title)}">${pvTlLabel}</span>
+          <span id="${pvTid}"></span>
         </div>
         <div class="card-meta">
           <span class="card-authors">${esc(authors)}</span>
@@ -1330,11 +1617,16 @@ function renderTranslated(ml) {
 // ── Render Summary ────────────────────────────────────────────
 function renderSummary(data) {
   const { totalCount, sources } = data;
+  const glCount = data.nationalGuidelines ? data.nationalGuidelines.length : 0;
+  const cqCount = data.clinicalQuestions ? data.clinicalQuestions.length : 0;
+  const grandTotal = totalCount + glCount + cqCount;
   const srcNames = [
     ['pubmed', 'PubMed'], ['jstage', 'J-STAGE'], ['s2', 'S2'],
     ['openalex', 'OpenAlex'], ['cinii', 'CiNii'], ['epmc', 'EPMC'],
   ];
-  let html = `<span class="total">${totalCount}件</span>`;
+  let html = `<span class="total">${grandTotal}件</span>`;
+  if (glCount) html += `<span class="src" style="color:#166534">GL: ${glCount}件</span>`;
+  if (cqCount) html += `<span class="src" style="color:#6d28d9">CQ: ${cqCount}件</span>`;
   for (const [key, name] of srcNames) {
     if (sources[key]) html += `<span class="src">${name}: ${sources[key]}件</span>`;
   }
@@ -1402,10 +1694,15 @@ function renderCard(item, prefixBadge) {
     tags += `<span class="tag">${esc(pt)}</span>`;
   }
 
+  const tid = 'tl-' + Math.random().toString(36).slice(2, 8);
+  const isJa = /[\u3000-\u9FFF\u30A0-\u30FF\u3040-\u309F]/.test(item.title);
+  const tlLabel = isJa ? '&#127468;&#127463; English' : '&#127471;&#127477; 日本語訳';
   return `
     <div class="card">
       <div class="card-title">
         ${prefixBadge || ""}<a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title)}</a>
+        <span class="tl-btn" data-tid="${tid}" data-title="${esc(item.title)}">${tlLabel}</span>
+        <span id="${tid}"></span>
       </div>
       <div class="card-meta">
         <span class="card-authors">${esc(authors)}</span>
@@ -1416,11 +1713,44 @@ function renderCard(item, prefixBadge) {
 }
 
 
+// ── Title Translation ────────────────────────────────────────
+async function translateTitle(btn) {
+  const tid = btn.dataset.tid;
+  const title = btn.dataset.title;
+  const el = document.getElementById(tid);
+  if (!el) return;
+  if (el.dataset.done) { el.style.display = el.style.display === 'none' ? 'block' : 'none'; return; }
+  btn.textContent = '...';
+  try {
+    const res = await fetch(`${WORKER_URL}/api/translate?text=${encodeURIComponent(title)}`);
+    const data = await res.json();
+    if (data.text) {
+      el.className = 'tl-text';
+      el.textContent = data.text;
+      el.dataset.done = '1';
+      btn.textContent = '訳';
+    } else {
+      btn.textContent = '×';
+    }
+  } catch {
+    btn.textContent = '×';
+  }
+}
+
+// Delegate click for translate buttons
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.tl-btn');
+  if (btn) translateTitle(btn);
+});
+
 // ── Pyramid ──────────────────────────────────────────────────
-function renderPyramid(grouped) {
+function renderPyramid(grouped, nationalGL, clinicalQuestions) {
   const pyramidEl = $('#pyramid');
   const barsEl = $('#pyramid-bars');
   const counts = EV_ORDER.map(level => (grouped[level] || []).length);
+  // Add national GL + CQ counts to guideline level (CQs are part of guidelines)
+  const glExtra = (nationalGL ? nationalGL.length : 0) + (clinicalQuestions ? clinicalQuestions.length : 0);
+  if (glExtra) counts[0] += glExtra;
   const max = Math.max(...counts, 1);
 
   if (counts.every(c => c === 0)) {
@@ -1587,13 +1917,156 @@ function initAISettings() {
   });
 }
 
+// ── Tab Switching ────────────────────────────────────────────
+function switchMode(mode) {
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.search-mode').forEach(m => m.style.display = 'none');
+  $(`#tab-${mode}`).classList.add('active');
+  $(`#mode-${mode}`).style.display = 'block';
+
+  // Hide/show search results depending on mode
+  const resultAreas = '#summary, #translated-info, .legend, #loading, #ai-summary, #national-gl-section, #cq-section, #patient-voice-section, #pyramid, #toolbar, #results, .ai-settings';
+  if (mode === 'browse') {
+    document.querySelectorAll(resultAreas).forEach(el => el.style.display = 'none');
+    loadCQBrowser();
+  }
+  // When switching back to search/advanced, results will reappear on next search
+}
+
+// ── CQ Browser ──────────────────────────────────────────────
+let browseCache = null;
+
+async function loadCQBrowser() {
+  const listEl = $('#browse-list');
+  const statsEl = $('#browse-stats');
+  const catParam = $('#browse-cat').value;
+  const filterText = ($('#browse-filter').value || '').trim().toLowerCase();
+  const filterWords = filterText ? filterText.split(/\s+/) : [];
+
+  if (!browseCache) {
+    listEl.innerHTML = '<div style="text-align:center;padding:1rem;color:#94a3b8">読み込み中...</div>';
+    try {
+      const res = await fetch(`${WORKER_URL}/api/cq/list`);
+      browseCache = await res.json();
+    } catch (e) {
+      listEl.innerHTML = '<div class="error-msg">読み込みエラー</div>';
+      return;
+    }
+  }
+
+  let groups = browseCache.groups;
+  if (catParam) groups = groups.filter(g => g.cat === catParam);
+
+  // Keyword filter: match CQ question or guideline title
+  if (filterWords.length) {
+    groups = groups.map(g => {
+      const filteredCQs = g.cqs.filter(cq => {
+        const text = (cq.question + ' ' + g.title).toLowerCase();
+        return filterWords.every(w => text.includes(w));
+      });
+      return filteredCQs.length ? { ...g, cqs: filteredCQs } : null;
+    }).filter(Boolean);
+  }
+
+  const totalCQs = groups.reduce((s, g) => s + g.cqs.length, 0);
+  const allTotal = browseCache.groups.reduce((s, g) => s + g.cqs.length, 0);
+  if (filterWords.length) {
+    statsEl.innerHTML = `<strong style="color:#6d28d9">${totalCQs}件ヒット</strong> / ${allTotal} CQs`;
+  } else {
+    statsEl.textContent = `${groups.length}ガイドライン / ${totalCQs} CQs`;
+  }
+  // Show/hide clear button
+  const clearBtn = $('#browse-filter-clear');
+  if (clearBtn) clearBtn.style.display = filterText ? 'block' : 'none';
+
+  const evColors = { A: '#059669', B: '#2563eb', C: '#d97706', D: '#ef4444', '-': '#94a3b8' };
+
+  const autoOpen = filterWords.length > 0;
+  if (autoOpen && groups.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8">該当するCQがありません</div>';
+    return;
+  }
+  listEl.innerHTML = groups.map(g => `
+    <div class="browse-gl${autoOpen ? ' open' : ''}" data-gid="${esc(g.gid)}">
+      <div class="browse-gl-header" onclick="this.parentElement.classList.toggle('open')">
+        <span>
+          ${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()" title="ガイドライン本文を開く">${esc(g.title)}</a>` : esc(g.title)}
+          <small style="color:#94a3b8">${esc(g.org)}</small>
+        </span>
+        <span class="browse-gl-badge">${g.cqs.length} CQs</span>
+      </div>
+      <div class="browse-gl-body">
+        ${g.cqs.map(cq => `
+          <div class="browse-cq" data-q="${esc(cq.question)}" style="cursor:pointer" title="クリックでこのCQに関連する文献を検索">
+            <span class="browse-cq-num">${esc(cq.cq)}</span>
+            <span class="browse-cq-q">${esc(cq.question)}</span>
+            <span class="browse-cq-ev" style="background:${evColors[cq.evidenceLevel] || '#94a3b8'}20;color:${evColors[cq.evidenceLevel] || '#94a3b8'}">${cq.evidenceLevel}</span>
+            ${cq.page ? `<a href="${esc(g.url)}#page=${cq.page}" target="_blank" class="cq-page-link" title="PDF該当ページ" onclick="event.stopPropagation()">p.${cq.page}</a>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  // CQ click → search
+  listEl.querySelectorAll('.browse-cq').forEach(el => {
+    el.addEventListener('click', () => {
+      const q = el.dataset.q;
+      if (!q) return;
+      // Extract key terms (first 2-3 meaningful words)
+      const terms = q.replace(/[（）()、。？?]/g, ' ').split(/\s+/).filter(w => w.length >= 2).slice(0, 3).join(' ');
+      qInput.value = terms;
+      switchMode('simple');
+      doSearch();
+    });
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────
 function init() {
+  // Simple search: suggest autocomplete
+  initSuggest(qInput, $('#q-ac'), true);
+
+  // Advanced search: MeSH autocomplete
   initAutocomplete(diseaseInput, $('#disease-ac'));
   initAutocomplete(treatmentInput, $('#treatment-ac'));
   initAutocomplete(topicInput, $('#topic-ac'));
   initAISettings();
+
+  // Search buttons
   searchBtn.addEventListener('click', doSearch);
+  if (searchBtnAdv) searchBtnAdv.addEventListener('click', doSearch);
+
+  // Tab switching
+  document.querySelectorAll('.mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+  });
+
+  // Search chips
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      qInput.value = chip.dataset.q;
+      doSearch();
+    });
+  });
+
+  // Browse category filter + keyword filter
+  $('#browse-cat').addEventListener('change', () => loadCQBrowser());
+  let browseFilterTimer = null;
+  $('#browse-filter').addEventListener('input', () => {
+    clearTimeout(browseFilterTimer);
+    browseFilterTimer = setTimeout(() => loadCQBrowser(), 200);
+  });
+  $('#browse-filter').addEventListener('focus', () => {
+    $('#browse-filter').style.borderColor = '#8b5cf6';
+  });
+  $('#browse-filter').addEventListener('blur', () => {
+    $('#browse-filter').style.borderColor = '#cbd5e1';
+  });
+  $('#browse-filter-clear').addEventListener('click', () => {
+    $('#browse-filter').value = '';
+    loadCQBrowser();
+  });
 
   // Sort buttons
   document.querySelectorAll('.sort-group .tb-btn').forEach(btn => {
@@ -1605,11 +2078,17 @@ function init() {
 
   // Restore from URL params
   const params = new URLSearchParams(location.search);
-  if (params.get('disease'))      diseaseInput.value = params.get('disease');
-  if (params.get('treatment'))    treatmentInput.value = params.get('treatment');
-  if (params.get('topic'))        topicInput.value = params.get('topic');
-  if (params.get('multilingual')) multilingualCb.checked = true;
-  if (params.get('disease') || params.get('treatment') || params.get('topic')) doSearch();
+  if (params.get('q')) {
+    qInput.value = params.get('q');
+    doSearch();
+  } else if (params.get('disease') || params.get('treatment') || params.get('topic')) {
+    switchMode('advanced');
+    if (params.get('disease'))      diseaseInput.value = params.get('disease');
+    if (params.get('treatment'))    treatmentInput.value = params.get('treatment');
+    if (params.get('topic'))        topicInput.value = params.get('topic');
+    if (params.get('multilingual')) $('#multilingual-adv').checked = true;
+    doSearch();
+  }
 }
 
 init();

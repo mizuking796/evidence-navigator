@@ -32,6 +32,12 @@ export default {
           return await handleSearch(url);
         case '/api/mesh':
           return await handleMeshSuggest(url);
+        case '/api/suggest':
+          return handleSuggest(url);
+        case '/api/cq/list':
+          return handleCQList(url);
+        case '/api/translate':
+          return await handleTranslate(url);
         case '/api/ai/parse':
           if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
           return await handleAIParse(await request.json());
@@ -73,23 +79,189 @@ async function handleMeshSuggest(url) {
   return json(suggestions);
 }
 
+// ── Suggest (CQ keywords + GL diseases) ─────────────────────
+
+function handleSuggest(url) {
+  const q = (url.searchParams.get('q') || '').toLowerCase();
+  if (q.length < 1) return json([]);
+
+  const seen = new Set();
+  const results = [];
+
+  // Search CQ keywords
+  for (const cq of CQ_DATA) {
+    for (const kw of cq.kw) {
+      const kwL = kw.toLowerCase();
+      if (kwL.includes(q) && !seen.has(kwL)) {
+        seen.add(kwL);
+        results.push(kw);
+      }
+    }
+  }
+
+  // Search GL disease names
+  for (const gl of GUIDELINES) {
+    for (const d of gl.diseases) {
+      const dL = d.toLowerCase();
+      if (dL.includes(q) && !seen.has(dL)) {
+        seen.add(dL);
+        results.push(d);
+      }
+    }
+  }
+
+  // Sort: exact prefix match first, then by length
+  results.sort((a, b) => {
+    const aStart = a.toLowerCase().startsWith(q) ? 0 : 1;
+    const bStart = b.toLowerCase().startsWith(q) ? 0 : 1;
+    if (aStart !== bStart) return aStart - bStart;
+    return a.length - b.length;
+  });
+
+  return json(results.slice(0, 15));
+}
+
+// ── CQ List (browse all) ────────────────────────────────────
+
+function handleCQList(url) {
+  const cat = url.searchParams.get('cat') || '';
+
+  const glMap = new Map();
+  for (const gl of GUIDELINES) glMap.set(gl.id, gl);
+
+  // Group CQs by guideline
+  const groups = {};
+  for (const cq of CQ_DATA) {
+    if (!groups[cq.gid]) {
+      const gl = glMap.get(cq.gid);
+      groups[cq.gid] = {
+        gid: cq.gid,
+        title: gl ? gl.title : cq.gid,
+        org: gl ? gl.org : '',
+        url: gl ? gl.url : '',
+        cat: gl ? gl.cat : '',
+        cqs: [],
+      };
+    }
+    groups[cq.gid].cqs.push({
+      cq: cq.cq,
+      question: cq.q,
+      type: cq.type,
+      recommendation: cq.rec,
+      evidenceLevel: cq.ev,
+      page: cq.page || null,
+    });
+  }
+
+  let result = Object.values(groups);
+
+  // Filter by category if specified
+  if (cat) {
+    result = result.filter(g => g.cat === cat);
+  }
+
+  return json({
+    totalGuidelines: result.length,
+    totalCQs: result.reduce((s, g) => s + g.cqs.length, 0),
+    groups: result,
+  });
+}
+
+// ── Synonym Dictionary ───────────────────────────────────────
+// Each group = set of equivalent terms. Input matching any → expand to all.
+const SYNONYMS = [
+  // リハビリ系
+  ['リハ', 'リハビリ', 'リハビリテーション', 'rehabilitation'],
+  ['PT', '理学療法', 'physical therapy', 'physiotherapy'],
+  ['OT', '作業療法', 'occupational therapy'],
+  ['ST', '言語聴覚療法', '言語療法', 'speech therapy'],
+  // 疾患略語
+  ['OA', '変形性関節症', 'osteoarthritis'],
+  ['膝OA', '変形性膝関節症', 'knee osteoarthritis'],
+  ['股OA', '変形性股関節症', 'hip osteoarthritis'],
+  ['RA', '関節リウマチ', 'rheumatoid arthritis'],
+  ['脳卒中', 'stroke', '脳梗塞', '脳出血', 'CVA'],
+  ['心筋梗塞', 'MI', 'AMI', '急性心筋梗塞', 'myocardial infarction'],
+  ['心不全', 'HF', 'heart failure', 'HFrEF', 'HFpEF'],
+  ['COPD', '慢性閉塞性肺疾患'],
+  ['DM', '糖尿病', 'diabetes'],
+  ['ALS', '筋萎縮性側索硬化症'],
+  ['PD', 'パーキンソン病', "Parkinson's disease"],
+  ['ACL', '前十字靱帯', '前十字靭帯', 'anterior cruciate ligament'],
+  ['TKA', '人工膝関節', '人工膝関節置換術'],
+  ['THA', '人工股関節', '人工股関節置換術'],
+  ['ICU', '集中治療', 'intensive care'],
+  ['BPPV', '良性発作性頭位めまい症'],
+  ['MCI', '軽度認知障害', 'mild cognitive impairment'],
+  // 治療法
+  ['運動療法', 'exercise therapy', '運動'],
+  ['物理療法', 'physical modalities', '物療'],
+  ['徒手療法', 'manual therapy', '徒手'],
+  ['電気刺激', 'NMES', '神経筋電気刺激', 'electrical stimulation'],
+  ['TENS', '経皮的電気神経刺激'],
+  ['嚥下', '嚥下障害', 'dysphagia', '嚥下訓練'],
+  ['ADL', '日常生活動作', 'activities of daily living'],
+  ['QOL', '生活の質', 'quality of life'],
+  ['ROM', '関節可動域', 'range of motion'],
+  // 略語→正式名
+  ['NSAIDs', '非ステロイド性抗炎症薬'],
+  ['CRPS', '複合性局所疼痛症候群'],
+  ['DVT', '深部静脈血栓症'],
+  ['VTE', '静脈血栓塞栓症'],
+  ['HAL', 'ロボットスーツ'],
+  ['FIM', '機能的自立度評価'],
+  ['BI', 'Barthel Index', 'バーセルインデックス'],
+];
+
+// Build lookup: term(lowercase) → Set of synonyms
+const SYN_MAP = new Map();
+for (const group of SYNONYMS) {
+  const lowerGroup = group.map(t => t.toLowerCase());
+  for (const term of lowerGroup) {
+    if (!SYN_MAP.has(term)) SYN_MAP.set(term, new Set());
+    for (const syn of group) SYN_MAP.get(term).add(syn);
+  }
+}
+
+function expandSynonyms(terms) {
+  const expanded = new Set(terms);
+  for (const term of terms) {
+    const syns = SYN_MAP.get(term.toLowerCase());
+    if (syns) {
+      for (const s of syns) expanded.add(s);
+    }
+  }
+  return [...expanded];
+}
+
 // ── Search ────────────────────────────────────────────────────
 
 async function handleSearch(url) {
+  // Support single 'q' param (split by spaces) OR separate fields
+  const qParam = url.searchParams.get('q') || '';
   const disease = url.searchParams.get('disease') || '';
   const treatment = url.searchParams.get('treatment') || '';
   const topic = url.searchParams.get('topic') || '';
   const multilingual = url.searchParams.get('multilingual') === 'true';
   const patientVoice = url.searchParams.get('patientVoice') === 'true';
 
-  if (!disease && !treatment && !topic) {
-    return json({ error: 'disease, treatment, or topic required' }, 400);
+  // Build query parts from either q or individual fields
+  const queryParts = [];
+  if (qParam) {
+    queryParts.push(...qParam.split(/\s+/).filter(Boolean));
+  } else {
+    if (disease) queryParts.push(disease);
+    if (treatment) queryParts.push(treatment);
+    if (topic) queryParts.push(topic);
   }
 
-  const queryParts = [];
-  if (disease) queryParts.push(disease);
-  if (treatment) queryParts.push(treatment);
-  if (topic) queryParts.push(topic);
+  if (queryParts.length === 0) {
+    return json({ error: 'q, disease, treatment, or topic required' }, 400);
+  }
+
+  // Synonym expansion (always, before multilingual)
+  const expandedParts = expandSynonyms(queryParts);
+  // Keep original queryParts for external DB, use expandedParts for CQ/GL search
 
   // Multilingual: translate and search in both languages
   let translatedParts = null;
@@ -151,12 +323,12 @@ async function handleSearch(url) {
   // Smart dedup & merge
   const { results, sourceCounts } = deduplicateAndMerge(allResults);
 
-  // National guidelines local search
-  const nationalGL = searchNationalGuidelines(queryParts, translatedParts);
+  // National guidelines local search (with synonym expansion)
+  const nationalGL = searchNationalGuidelines(expandedParts, translatedParts);
   sourceCounts.nationalGL = nationalGL.length;
 
-  // Clinical Questions local search
-  const clinicalQuestions = searchClinicalQuestions(queryParts, translatedParts);
+  // Clinical Questions local search (with synonym expansion)
+  const clinicalQuestions = searchClinicalQuestions(expandedParts, translatedParts);
   sourceCounts.clinicalQuestions = clinicalQuestions.length;
 
   // Patient Voice: additional qualitative research search
@@ -197,6 +369,15 @@ async function translate(text, srcLang, tgtLang) {
   } catch {
     return null;
   }
+}
+
+async function handleTranslate(url) {
+  const text = url.searchParams.get('text') || '';
+  if (!text) return json({ error: 'text required' }, 400);
+  const tgtLang = isJapanese(text) ? 'en' : 'ja';
+  const srcLang = isJapanese(text) ? 'ja' : 'en';
+  const result = await translate(text, srcLang, tgtLang);
+  return json({ text: result || '', src: srcLang, tgt: tgtLang });
 }
 
 // ── PubMed ────────────────────────────────────────────────────
@@ -445,8 +626,12 @@ async function searchOpenAlex(query) {
 }
 
 function classifyOAType(type, title) {
-  if (type === 'review') return 'review';
-  // OpenAlex types aren't detailed enough, use title-based
+  if (type === 'review') {
+    // Distinguish SR/MA from narrative review
+    const t = (title || '').toLowerCase();
+    if (/systematic|meta[\s-]?analysis|メタ|システマティック/.test(t)) return 'sr_ma';
+    return 'review';
+  }
   return classifyByTitle(title || '');
 }
 
@@ -523,14 +708,34 @@ async function searchEPMC(query) {
 
 function classifyByTitle(title) {
   const t = (title || '').toLowerCase();
-  if (t.includes('ガイドライン') || t.includes('guideline')) return 'guideline';
-  if (t.includes('システマティック') || t.includes('systematic')) return 'sr_ma';
-  if (t.includes('メタアナリシス') || t.includes('meta-analysis') || t.includes('メタ分析')) return 'sr_ma';
-  if (t.includes('ランダム化') || t.includes('randomized') || t.includes('無作為')) return 'rct';
-  if (t.includes('臨床試験') || t.includes('clinical trial')) return 'clinical_trial';
-  if (t.includes('コホート') || t.includes('cohort') || t.includes('観察研究')) return 'observational';
-  if (t.includes('症例報告') || t.includes('case report') || t.includes('症例')) return 'case_report';
-  if (t.includes('レビュー') || t.includes('review')) return 'review';
+  const tj = title || '';
+  // Guideline
+  if (/ガイドライン|guideline|推奨グレード|clinical recommendation|practice parameter|consensus statement/.test(t)) return 'guideline';
+  // SR / Meta-analysis
+  if (/システマティック|systematic|メタアナリシス|meta[\s-]?analysis|メタ分析|umbrella review|scoping review/.test(t)) return 'sr_ma';
+  // RCT
+  if (/ランダム化|randomiz|無作為化?比較|rct\b|controlled trial/.test(t)) return 'rct';
+  // Clinical trial
+  if (/臨床試験|clinical trial|介入研究|intervention study|pilot study|パイロット|feasibility/.test(t)) return 'clinical_trial';
+  // Observational
+  if (/コホート|cohort|観察研究|横断研究|cross[\s-]?sectional|前向き|後ろ向き|retrospectiv|prospectiv|追跡調査|縦断|longitudinal|case[\s-]?control|症例対照|レジストリ|registry|epidemiolog|prevalence|有病率|incidence|発生率|アンケート|survey|質問紙/.test(t)) return 'observational';
+  // Case report / series
+  if (/症例報告|case report|症例検討|case series|一例|1例|一症例|経験例/.test(t)) return 'case_report';
+  // Review (broad)
+  if (/レビュー|review|総説|文献的考察|文献検討|overview|narrative/.test(t)) return 'review';
+  // Japanese-specific: study/investigation patterns → observational
+  if (/についての検討|に関する検討|の検討|因子の検討|要因.{0,4}検討|発生要因/.test(tj)) return 'observational';
+  if (/に関する研究|に関する調査|についての研究|の実態調査|の実態/.test(tj)) return 'observational';
+  if (/解析|分析した|を分析|多変量|回帰|統計/.test(tj)) return 'observational';
+  // Japanese: review/overview patterns
+  if (/の現状と課題|現状と展望|の動向|の概要|の概説|の紹介|の基礎と応用|最新の|特集/.test(tj)) return 'review';
+  if (/考え方と実際|の実際/.test(tj)) return 'review';
+  // Japanese: report patterns → case report
+  if (/の報告|について報告|を報告|を経験/.test(tj)) return 'case_report';
+  // Effect/efficacy studies likely clinical
+  if (/効果|有効性|efficacy|effectiveness|比較検討|comparison|治療成績|outcome/.test(t)) return 'clinical_trial';
+  // Japanese: study with 影響/予後 → observational
+  if (/影響|予後|関連|関与|相関|関係/.test(tj)) return 'observational';
   return 'other';
 }
 
@@ -920,6 +1125,7 @@ function searchClinicalQuestions(queryParts, translatedParts) {
         guidelineTitle: gl ? gl.title : '',
         guidelineOrg: gl ? gl.org : '',
         guidelineUrl: gl ? gl.url : '',
+        page: cq.page || null,
         score,
       });
     }
