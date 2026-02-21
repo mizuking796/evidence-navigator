@@ -128,15 +128,15 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: .6rem .8rem;
-      background: #f8fafc;
+      padding: .65rem .9rem;
+      background: linear-gradient(135deg, #f8fafc, #f5f3ff);
       cursor: pointer;
       font-size: .85rem;
       font-weight: 600;
       color: #1e293b;
       min-width: 0;
     }
-    .browse-gl-header:hover { background: #f1f5f9; }
+    .browse-gl-header:hover { background: linear-gradient(135deg, #f1f5f9, #ede9fe); }
     .browse-gl-header > span:first-child {
       min-width: 0;
       flex: 1;
@@ -154,15 +154,17 @@
     .browse-gl-body { display: none; padding: .5rem .8rem; min-width: 0; overflow: hidden; }
     .browse-gl.open .browse-gl-body { display: block; }
     .browse-cq {
-      padding: .35rem 0;
+      padding: .45rem .5rem;
       border-bottom: 1px solid #f1f5f9;
       font-size: .8rem;
       display: flex;
       gap: .5rem;
-      align-items: baseline;
+      align-items: center;
+      border-radius: 4px;
+      transition: background .15s;
     }
     .browse-cq:last-child { border-bottom: none; }
-    .browse-cq:hover { background: #f1f5f9; border-radius: 4px; }
+    .browse-cq:hover { background: #f5f3ff; }
     .cq-evidence-panel {
       margin: .3rem 0 .5rem 0;
       padding: .5rem .7rem;
@@ -225,18 +227,37 @@
     }
     .cq-ev-close:hover { background: #e2e8f0; color: #334155; }
     .browse-cq-num {
-      font-weight: 600;
-      color: #6d28d9;
-      min-width: 60px;
+      font-size: .65rem;
+      font-weight: 700;
+      color: #fff;
+      background: #8b5cf6;
+      padding: .1rem .4rem;
+      border-radius: 4px;
+      white-space: nowrap;
       flex-shrink: 0;
     }
     .browse-cq-q { color: #334155; flex: 1; min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
     .browse-cq-ev {
-      font-size: .65rem;
+      font-size: .6rem;
       font-weight: 700;
-      padding: .1rem .3rem;
-      border-radius: 3px;
+      padding: .1rem .35rem;
+      border-radius: 4px;
       flex-shrink: 0;
+      color: #fff;
+      min-width: 1.2rem;
+      text-align: center;
+    }
+    .tl-btn.loading { opacity: .5; pointer-events: none; }
+    .browse-cq-ja {
+      display: block;
+      font-size: .78rem;
+      color: #1e293b;
+      line-height: 1.5;
+      margin-top: .25rem;
+      padding: .4rem .6rem;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-radius: 6px;
+      border-left: 3px solid #7c3aed;
     }
     .search-fields {
       display: grid;
@@ -493,33 +514,31 @@
     .tl-btn {
       display: inline-flex;
       align-items: center;
-      gap: .25rem;
-      padding: .3rem .7rem;
-      border-radius: 6px;
-      font-size: .75rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #0ea5e9, #2563eb);
-      color: #fff;
-      border: none;
+      gap: .2rem;
+      padding: .15rem .5rem;
+      border-radius: 4px;
+      font-size: .65rem;
+      font-weight: 600;
+      background: none;
+      color: #6d28d9;
+      border: 1px solid #c4b5fd;
       cursor: pointer;
       transition: all .15s;
       vertical-align: middle;
-      margin-left: .4rem;
-      box-shadow: 0 1px 3px rgba(37,99,235,.3);
+      margin-left: .3rem;
       white-space: nowrap;
     }
-    .tl-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(37,99,235,.4); }
+    .tl-btn:hover { background: #7c3aed; color: #fff; border-color: #7c3aed; }
     .tl-text {
       display: block;
-      margin: .5rem -.8rem -.2rem;
-      padding: .6rem 1rem;
-      font-size: .88rem;
+      margin: .4rem 0 0;
+      padding: .4rem .7rem;
+      font-size: .82rem;
       color: #1e293b;
-      line-height: 1.55;
+      line-height: 1.5;
       background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
       border-radius: 6px;
-      border-left: 4px solid #0ea5e9;
-      font-weight: 500;
+      border-left: 3px solid #7c3aed;
     }
     .tag-cite   { background: #f0fdf4; color: #166534; }
 
@@ -993,7 +1012,7 @@
 
 <header style="cursor:pointer" onclick="location.href=location.pathname">
   <h1>Evidence Navigator</h1>
-  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン345件 + CQ4362件</p>
+  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン382件 + CQ5097件</p>
 </header>
 
 <main>
@@ -1618,7 +1637,7 @@ function renderPatientVoice(items) {
 
     const pvTid = 'tl-' + Math.random().toString(36).slice(2, 8);
     const pvIsJa = /[\u3000-\u9FFF\u30A0-\u30FF\u3040-\u309F]/.test(item.title);
-    const pvTlLabel = pvIsJa ? '&#127468;&#127463; English' : '&#127471;&#127477; 日本語訳';
+    const pvTlLabel = pvIsJa ? 'EN' : '訳';
     return `
       <div class="pv-card">
         <div class="card-title">
@@ -1776,7 +1795,7 @@ function renderCard(item, prefixBadge) {
 
   const tid = 'tl-' + Math.random().toString(36).slice(2, 8);
   const isJa = /[\u3000-\u9FFF\u30A0-\u30FF\u3040-\u309F]/.test(item.title);
-  const tlLabel = isJa ? '&#127468;&#127463; English' : '&#127471;&#127477; 日本語訳';
+  const tlLabel = isJa ? 'EN' : '訳';
   return `
     <div class="card">
       <div class="card-title">
@@ -2206,27 +2225,33 @@ async function loadCQBrowser() {
     listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8">該当するCQがありません</div>';
     return;
   }
-  listEl.innerHTML = groups.map(g => `
+  listEl.innerHTML = groups.map(g => {
+    const glIsEn = !/[\u3000-\u9FFF\uF900-\uFAFF]/.test(g.title);
+    return `
     <div class="browse-gl${autoOpen ? ' open' : ''}" data-gid="${esc(g.gid)}">
       <div class="browse-gl-header" onclick="this.parentElement.classList.toggle('open')">
         <span>
           ${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()" title="ガイドライン本文を開く">${esc(g.title)}</a>` : esc(g.title)}
+          ${glIsEn ? `<button class="tl-btn" onclick="event.stopPropagation();translateGLTitle(this)" title="日本語に翻訳" style="margin-left:.3rem">訳</button>` : ''}
           <small style="color:#94a3b8">${esc(g.org)}</small>
         </span>
         <span class="browse-gl-badge">${g.cqs.length} CQs</span>
       </div>
       <div class="browse-gl-body">
-        ${g.cqs.map(cq => `
+        ${g.cqs.map(cq => {
+          const isEn = !/[\u3000-\u9FFF\uF900-\uFAFF]/.test(cq.question);
+          return `
           <div class="browse-cq" data-q="${esc(cq.question)}" data-kw="${esc((cq.kw || []).filter(k => /^[A-Za-z\s\-]+$/.test(k)).join(','))}" style="cursor:pointer" title="クリックでこのCQに関連する文献を検索">
             <span class="browse-cq-num">${esc(cq.cq)}</span>
             <span class="browse-cq-q">${esc(cq.question)}</span>
-            <span class="browse-cq-ev" style="background:${evColors[cq.evidenceLevel] || '#94a3b8'}20;color:${evColors[cq.evidenceLevel] || '#94a3b8'}">${cq.evidenceLevel}</span>
+            ${isEn ? `<button class="tl-btn" onclick="event.stopPropagation();translateCQ(this)" title="日本語に翻訳">訳</button>` : ''}
+            <span class="browse-cq-ev" style="background:${evColors[cq.evidenceLevel] || '#94a3b8'}">${cq.evidenceLevel}</span>
             ${cq.page ? `<a href="${esc(g.url)}#page=${cq.page}" target="_blank" rel="noopener" class="cq-page-link" title="PDF該当ページ" onclick="event.stopPropagation()">p.${cq.page}</a>` : ''}
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   // CQ click → inline PubMed SR/RCT evidence search
   listEl.querySelectorAll('.browse-cq').forEach(el => {
@@ -2238,6 +2263,80 @@ async function loadCQBrowser() {
       toggleCQEvidence(el, q, kw);
     });
   });
+}
+
+// ── CQ Translate (MyMemory API) ───────────────────────────────
+
+const translateCache = new Map();
+
+async function fetchTranslation(text) {
+  if (translateCache.has(text)) return translateCache.get(text);
+  const res = await fetch(
+    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ja`,
+    { signal: AbortSignal.timeout(8000) }
+  );
+  const data = await res.json();
+  const translated = data.responseData?.translatedText || '';
+  if (translated) translateCache.set(text, translated);
+  return translated;
+}
+
+async function translateCQ(btn) {
+  const qEl = btn.closest('.browse-cq').querySelector('.browse-cq-q');
+  const existing = qEl.querySelector('.browse-cq-ja');
+  if (existing) { existing.remove(); btn.textContent = '訳'; return; }
+
+  const text = qEl.childNodes[0].textContent.trim();
+  if (translateCache.has(text)) {
+    appendJa(qEl, translateCache.get(text));
+    btn.textContent = '✕';
+    return;
+  }
+
+  btn.classList.add('loading'); btn.textContent = '…';
+  try {
+    const translated = await fetchTranslation(text);
+    if (!translated) { btn.textContent = '訳'; btn.classList.remove('loading'); return; }
+    appendJa(qEl, translated);
+    btn.textContent = '✕';
+  } catch (e) {
+    btn.textContent = '!'; btn.title = '翻訳エラー';
+    setTimeout(() => { btn.textContent = '訳'; btn.title = '日本語に翻訳'; }, 2000);
+  }
+  btn.classList.remove('loading');
+}
+
+async function translateGLTitle(btn) {
+  const headerSpan = btn.closest('span');
+  const existing = headerSpan.querySelector('.browse-cq-ja');
+  if (existing) { existing.remove(); btn.textContent = '訳'; return; }
+
+  const linkOrText = headerSpan.querySelector('a') || headerSpan;
+  const text = (linkOrText.textContent || '').trim();
+  if (translateCache.has(text)) {
+    appendJa(headerSpan, translateCache.get(text));
+    btn.textContent = '✕';
+    return;
+  }
+
+  btn.classList.add('loading'); btn.textContent = '…';
+  try {
+    const translated = await fetchTranslation(text);
+    if (!translated) { btn.textContent = '訳'; btn.classList.remove('loading'); return; }
+    appendJa(headerSpan, translated);
+    btn.textContent = '✕';
+  } catch (e) {
+    btn.textContent = '!'; btn.title = '翻訳エラー';
+    setTimeout(() => { btn.textContent = '訳'; btn.title = '日本語に翻訳'; }, 2000);
+  }
+  btn.classList.remove('loading');
+}
+
+function appendJa(parent, text) {
+  const ja = document.createElement('span');
+  ja.className = 'browse-cq-ja';
+  ja.textContent = text;
+  parent.appendChild(ja);
 }
 
 // ── CQ Evidence (inline PubMed SR/RCT search) ────────────────
