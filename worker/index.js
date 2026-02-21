@@ -217,9 +217,23 @@ function handleCQList(url, cors) {
 
   let result = Object.values(groups);
 
-  // Filter by category if specified
+  // Filter by category if specified (map frontend values to data categories)
   if (cat) {
-    result = result.filter(g => g.cat === cat);
+    const CAT_MAP = {
+      'ortho': ['整形', 'SPORT', '骨代謝'],
+      'neuro': ['神経', '高次脳', '脳卒中', '認知症', '小児'],
+      'cardio': ['循環器'],
+      'resp':  ['呼吸器', '呼吸', '集中治療'],
+      'onco':  ['がんサバイバーシップ', 'がん支持', '腫瘍', 'NCCN', 'リンパ', '緩和'],
+      'ent':   ['耳鼻', '嚥下', '歯科リハ'],
+      'general': ['疼痛', '精神', '老年', '在宅', '栄養', '看護', '褥瘡', '排尿', '排泄', '睡眠', '糖尿病', '感染症', '腎臓', '転倒予防', '福祉用具', 'リウマチ', 'アレルギー', '外傷', 'リハ医学'],
+    };
+    const mapped = CAT_MAP[cat];
+    if (mapped) {
+      result = result.filter(g => mapped.includes(g.cat));
+    } else {
+      result = result.filter(g => g.cat === cat);
+    }
   }
 
   return json({
@@ -244,9 +258,10 @@ async function handleCQEvidence(url, cors) {
     const kwTerms = kw.split(',').map(k => k.trim()).filter(Boolean);
     if (kwTerms.length) keywords = kwTerms.slice(0, 4);
   } else {
-    // For Japanese keywords, try synonym expansion to get English equivalents
+    // For Japanese keywords, translate to English for PubMed
     const isJa = keywords.some(k => /[\u3000-\u9FFF]/.test(k));
     if (isJa) {
+      // Step 1: Try SYN_MAP and jaToEn dictionary (fast, no API call)
       const engTerms = [];
       for (const k of keywords) {
         const syns = SYN_MAP.get(k.toLowerCase());
@@ -256,17 +271,32 @@ async function handleCQEvidence(url, cors) {
           }
         }
       }
-      // Add English keywords for medical terms: 治療→treatment, 運動療法→exercise therapy
       const jaToEn = {
         '運動療法': 'exercise therapy', '理学療法': 'physical therapy', '作業療法': 'occupational therapy',
         '言語療法': 'speech therapy', '薬物療法': 'pharmacotherapy', '手術': 'surgery',
         '放射線': 'radiation', '化学療法': 'chemotherapy', '治療': 'treatment',
         '装具': 'orthosis', '義肢': 'prosthesis', '電気刺激': 'electrical stimulation',
+        '運動': 'exercise', '歩行': 'gait', '筋力': 'muscle strength',
+        '高齢者': 'elderly', '転倒': 'falls', '予防': 'prevention',
+        '疼痛': 'pain', '痙縮': 'spasticity', '栄養': 'nutrition',
       };
       for (const k of keywords) {
         if (jaToEn[k] && !engTerms.includes(jaToEn[k])) engTerms.push(jaToEn[k]);
       }
-      if (engTerms.length >= 2) keywords = engTerms.slice(0, 4);
+      if (engTerms.length >= 2) {
+        keywords = engTerms.slice(0, 4);
+      } else {
+        // Step 2: Fallback to auto-translation API
+        const translations = await Promise.allSettled(
+          keywords.map(k => translate(k, 'ja', 'en'))
+        );
+        const autoTranslated = translations
+          .map(t => t.status === 'fulfilled' && t.value ? t.value : null)
+          .filter(Boolean);
+        if (autoTranslated.length > 0) {
+          keywords = [...engTerms, ...autoTranslated].slice(0, 4);
+        }
+      }
     }
   }
 
