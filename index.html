@@ -1973,11 +1973,11 @@ async function loadCQBrowser() {
   let groups = browseCache.groups;
   if (catParam) groups = groups.filter(g => g.cat === catParam);
 
-  // Keyword filter: match CQ question or guideline title
+  // Keyword filter: match CQ question, keywords, or guideline title (bilingual)
   if (filterWords.length) {
     groups = groups.map(g => {
       const filteredCQs = g.cqs.filter(cq => {
-        const text = (cq.question + ' ' + g.title).toLowerCase();
+        const text = (cq.question + ' ' + g.title + ' ' + (g.titleEn || '') + ' ' + (cq.kw || []).join(' ')).toLowerCase();
         return filterWords.every(w => text.includes(w));
       });
       return filteredCQs.length ? { ...g, cqs: filteredCQs } : null;

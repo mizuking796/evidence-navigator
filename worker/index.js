@@ -137,9 +137,11 @@ function handleCQList(url) {
       groups[cq.gid] = {
         gid: cq.gid,
         title: gl ? gl.title : cq.gid,
+        titleEn: gl ? (gl.titleEn || '') : '',
         org: gl ? gl.org : '',
         url: gl ? gl.url : '',
         cat: gl ? gl.cat : '',
+        country: gl ? (gl.country || 'JP') : 'JP',
         cqs: [],
       };
     }
@@ -150,6 +152,7 @@ function handleCQList(url) {
       recommendation: cq.rec,
       evidenceLevel: cq.ev,
       page: cq.page || null,
+      kw: cq.kw || [],
     });
   }
 
