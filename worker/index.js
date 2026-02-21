@@ -36,6 +36,8 @@ export default {
           return handleSuggest(url);
         case '/api/cq/list':
           return handleCQList(url);
+        case '/api/cq/evidence':
+          return await handleCQEvidence(url);
         case '/api/translate':
           return await handleTranslate(url);
         case '/api/ai/parse':
@@ -168,6 +170,132 @@ function handleCQList(url) {
     totalCQs: result.reduce((s, g) => s + g.cqs.length, 0),
     groups: result,
   });
+}
+
+// ── CQ Evidence (on-demand PubMed SR/RCT search) ─────────────
+
+async function handleCQEvidence(url) {
+  const q = url.searchParams.get('q') || '';
+  const kw = url.searchParams.get('kw') || ''; // pre-attached English keywords from CQ data
+  if (!q) return json({ error: 'q (CQ question text) required' }, 400);
+
+  // Extract meaningful keywords from CQ text
+  let keywords = extractCQKeywords(q);
+
+  // If English keywords are provided (from CQ kw field), prefer those for PubMed
+  if (kw) {
+    const kwTerms = kw.split(',').map(k => k.trim()).filter(Boolean);
+    if (kwTerms.length) keywords = kwTerms.slice(0, 4);
+  } else {
+    // For Japanese keywords, try synonym expansion to get English equivalents
+    const isJa = keywords.some(k => /[\u3000-\u9FFF]/.test(k));
+    if (isJa) {
+      const engTerms = [];
+      for (const k of keywords) {
+        const syns = SYN_MAP.get(k.toLowerCase());
+        if (syns) {
+          for (const s of syns) {
+            if (/^[A-Za-z]/.test(s) && s.length > 1 && !engTerms.includes(s)) engTerms.push(s);
+          }
+        }
+      }
+      // Add English keywords for medical terms: 治療→treatment, 運動療法→exercise therapy
+      const jaToEn = {
+        '運動療法': 'exercise therapy', '理学療法': 'physical therapy', '作業療法': 'occupational therapy',
+        '言語療法': 'speech therapy', '薬物療法': 'pharmacotherapy', '手術': 'surgery',
+        '放射線': 'radiation', '化学療法': 'chemotherapy', '治療': 'treatment',
+        '装具': 'orthosis', '義肢': 'prosthesis', '電気刺激': 'electrical stimulation',
+      };
+      for (const k of keywords) {
+        if (jaToEn[k] && !engTerms.includes(jaToEn[k])) engTerms.push(jaToEn[k]);
+      }
+      if (engTerms.length >= 2) keywords = engTerms.slice(0, 4);
+    }
+  }
+
+  if (!keywords.length) return json({ results: [], keywords: [] });
+
+  // Build PubMed query: keywords AND (SR OR MA OR RCT filter)
+  const diseaseQuery = keywords.join(' AND ');
+  const typeFilter = '(systematic review[pt] OR meta-analysis[pt] OR randomized controlled trial[pt])';
+  const fullQuery = `(${diseaseQuery}) AND ${typeFilter}`;
+
+  const searchUrl =
+    `${PUBMED_BASE}/esearch.fcgi?db=pubmed` +
+    `&term=${encodeURIComponent(fullQuery)}` +
+    `&retmax=5&retmode=json&sort=relevance` +
+    `&tool=evidence-navigator&email=evidence-navigator@example.com`;
+
+  try {
+    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(8000) });
+    const searchData = await searchRes.json();
+    const ids = searchData?.esearchresult?.idlist || [];
+    if (!ids.length) return json({ results: [], keywords, query: fullQuery });
+
+    const sumUrl =
+      `${PUBMED_BASE}/esummary.fcgi?db=pubmed` +
+      `&id=${ids.join(',')}` +
+      `&retmode=json` +
+      `&tool=evidence-navigator&email=evidence-navigator@example.com`;
+
+    const sumRes = await fetch(sumUrl, { signal: AbortSignal.timeout(8000) });
+    const sumData = await sumRes.json();
+
+    const articles = [];
+    for (const id of ids) {
+      const a = sumData?.result?.[id];
+      if (!a || !a.title) continue;
+      const pubTypes = a.pubtype || [];
+      articles.push({
+        pmid: id,
+        title: strip(a.title),
+        authors: (a.authors || []).map(x => x.name).slice(0, 3),
+        journal: a.source || '',
+        year: yearOf(a.pubdate || ''),
+        type: classifyPubType(pubTypes),
+        url: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
+      });
+    }
+
+    return json({ results: articles, keywords, query: fullQuery });
+  } catch (e) {
+    return json({ results: [], keywords, error: e.message });
+  }
+}
+
+function extractCQKeywords(q) {
+  // Remove CQ numbering
+  let text = q.replace(/^(CQ\s*\d+[\s\-:：]*|Q\d+[\s\-:：]*)/i, '');
+
+  // For Japanese text: extract medical/technical terms using regex patterns
+  const isJa = /[\u3000-\u9FFF]/.test(text);
+  if (isJa) {
+    // Extract katakana words (medical terms like リハビリテーション, パーキンソン)
+    const katakana = text.match(/[\u30A0-\u30FF\u31F0-\u31FF]{2,}/g) || [];
+    // Extract kanji compounds (medical terms like 脳卒中, 運動療法)
+    const kanji = text.match(/[\u4E00-\u9FFF]{2,}/g) || [];
+    // Extract English/acronym terms embedded in Japanese text
+    const english = text.match(/[A-Za-z][A-Za-z0-9\-]{1,}/g) || [];
+
+    // Common non-medical kanji to filter out
+    const jaStop = new Set(['患者', '対象', '場合', '方法', '結果', '効果', '可能', '必要', '有効', '推奨', '診療', '使用', '実施', '介入', '評価', '改善', '予防', '有用', '適応', '検討', '報告', '研究', '比較', '期間', '目的', '対応', '施行', '観点', '状態', '状況', '影響', '関連', '安全性', '有効性']);
+    // Strip common suffixes: 患者, 症例, 療法 (keep root term)
+    const cleanKanji = kanji.map(w => w.replace(/患者$|症例$/, '')).filter(w => w.length >= 2);
+    const filtered = [...cleanKanji.filter(w => !jaStop.has(w)), ...katakana, ...english];
+
+    // Deduplicate and take top 3
+    const unique = [...new Set(filtered)];
+    return unique.slice(0, 3);
+  }
+
+  // For English text: split by spaces, remove stopwords
+  const enStop = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'shall', 'of', 'in', 'to', 'for', 'with', 'on', 'at', 'by', 'from', 'as', 'or', 'and', 'but', 'if', 'not', 'no', 'what', 'which', 'who', 'how', 'when', 'where', 'that', 'this', 'it', 'its', 'they', 'them', 'their', 'we', 'our', 'you', 'your', 'after', 'before', 'during', 'between', 'through']);
+  const words = text.replace(/[()[\]{}.,;:!?'"]/g, ' ').split(/\s+/).filter(w => {
+    if (w.length < 2) return false;
+    return !enStop.has(w.toLowerCase());
+  });
+
+  return words.slice(0, 4);
 }
 
 // ── Synonym Dictionary ───────────────────────────────────────

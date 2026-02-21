@@ -159,6 +159,67 @@
     }
     .browse-cq:last-child { border-bottom: none; }
     .browse-cq:hover { background: #f1f5f9; border-radius: 4px; }
+    .cq-evidence-panel {
+      margin: .3rem 0 .5rem 60px;
+      padding: .5rem .7rem;
+      background: linear-gradient(135deg, #faf5ff, #f0f9ff);
+      border-radius: 8px;
+      border-left: 3px solid #7c3aed;
+      font-size: .75rem;
+    }
+    .cq-evidence-panel .cq-ev-loading {
+      color: #7c3aed;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+    }
+    .cq-evidence-panel .cq-ev-loading::before {
+      content: '';
+      width: 14px; height: 14px;
+      border: 2px solid #c4b5fd;
+      border-top-color: #7c3aed;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .cq-ev-item {
+      padding: .3rem 0;
+      border-bottom: 1px solid #e2e8f0;
+      line-height: 1.4;
+    }
+    .cq-ev-item:last-child { border-bottom: none; }
+    .cq-ev-item a { color: #1e40af; text-decoration: none; }
+    .cq-ev-item a:hover { text-decoration: underline; }
+    .cq-ev-type {
+      font-size: .6rem;
+      font-weight: 700;
+      padding: .05rem .3rem;
+      border-radius: 3px;
+      color: #fff;
+      margin-right: .3rem;
+    }
+    .cq-ev-type-sr_ma { background: #7c3aed; }
+    .cq-ev-type-rct { background: #2563eb; }
+    .cq-ev-type-guideline { background: #059669; }
+    .cq-ev-type-clinical_trial { background: #d97706; }
+    .cq-ev-type-other { background: #94a3b8; }
+    .cq-ev-meta { color: #64748b; font-size: .65rem; }
+    .cq-ev-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .3rem;
+      font-weight: 600;
+      color: #5b21b6;
+    }
+    .cq-ev-close {
+      cursor: pointer;
+      font-size: .7rem;
+      color: #94a3b8;
+      padding: .1rem .3rem;
+      border-radius: 4px;
+    }
+    .cq-ev-close:hover { background: #e2e8f0; color: #334155; }
     .browse-cq-num {
       font-weight: 600;
       color: #6d28d9;
@@ -2132,7 +2193,7 @@ async function loadCQBrowser() {
       </div>
       <div class="browse-gl-body">
         ${g.cqs.map(cq => `
-          <div class="browse-cq" data-q="${esc(cq.question)}" style="cursor:pointer" title="クリックでこのCQに関連する文献を検索">
+          <div class="browse-cq" data-q="${esc(cq.question)}" data-kw="${esc((cq.kw || []).filter(k => /^[A-Za-z\s\-]+$/.test(k)).join(','))}" style="cursor:pointer" title="クリックでこのCQに関連する文献を検索">
             <span class="browse-cq-num">${esc(cq.cq)}</span>
             <span class="browse-cq-q">${esc(cq.question)}</span>
             <span class="browse-cq-ev" style="background:${evColors[cq.evidenceLevel] || '#94a3b8'}20;color:${evColors[cq.evidenceLevel] || '#94a3b8'}">${cq.evidenceLevel}</span>
@@ -2143,18 +2204,87 @@ async function loadCQBrowser() {
     </div>
   `).join('');
 
-  // CQ click → search
+  // CQ click → inline PubMed SR/RCT evidence search
   listEl.querySelectorAll('.browse-cq').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
       const q = el.dataset.q;
+      const kw = el.dataset.kw || '';
       if (!q) return;
-      // Extract key terms (first 2-3 meaningful words)
-      const terms = q.replace(/[（）()、。？?]/g, ' ').split(/\s+/).filter(w => w.length >= 2).slice(0, 3).join(' ');
-      qInput.value = terms;
-      switchMode('simple');
-      doSearch();
+      toggleCQEvidence(el, q, kw);
     });
   });
+}
+
+// ── CQ Evidence (inline PubMed SR/RCT search) ────────────────
+
+const cqEvCache = new Map(); // q → results
+
+async function toggleCQEvidence(el, q, kw) {
+  // Toggle: if already open, close
+  const existing = el.nextElementSibling;
+  if (existing && existing.classList.contains('cq-evidence-panel')) {
+    existing.remove();
+    return;
+  }
+
+  // Create panel
+  const panel = document.createElement('div');
+  panel.className = 'cq-evidence-panel';
+  panel.innerHTML = '<div class="cq-ev-loading">PubMedから関連SR/RCTを検索中...</div>';
+  el.insertAdjacentElement('afterend', panel);
+
+  // Check cache
+  const cacheKey = q + '|' + kw;
+  if (cqEvCache.has(cacheKey)) {
+    renderCQEvidence(panel, cqEvCache.get(cacheKey), q);
+    return;
+  }
+
+  try {
+    let apiUrl = `${WORKER_URL}/api/cq/evidence?q=${encodeURIComponent(q)}`;
+    if (kw) apiUrl += `&kw=${encodeURIComponent(kw)}`;
+    const res = await fetch(apiUrl, {
+      signal: AbortSignal.timeout(12000),
+    });
+    const data = await res.json();
+    cqEvCache.set(cacheKey, data);
+    renderCQEvidence(panel, data, q);
+  } catch (e) {
+    panel.innerHTML = `<div style="color:#ef4444">検索エラー: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderCQEvidence(panel, data, q) {
+  const results = data.results || [];
+  const typeLabels = { sr_ma: 'SR/MA', rct: 'RCT', guideline: 'GL', clinical_trial: 'CT', other: '' };
+
+  if (!results.length) {
+    panel.innerHTML = `
+      <div class="cq-ev-header">
+        <span>関連エビデンス</span>
+        <span class="cq-ev-close" onclick="this.closest('.cq-evidence-panel').remove()">閉じる</span>
+      </div>
+      <div style="color:#94a3b8;padding:.3rem 0">SR/RCTが見つかりませんでした</div>
+      <div style="color:#94a3b8;font-size:.6rem">検索語: ${esc((data.keywords || []).join(', '))}</div>`;
+    return;
+  }
+
+  panel.innerHTML = `
+    <div class="cq-ev-header">
+      <span>関連エビデンス (${results.length}件)</span>
+      <span class="cq-ev-close" onclick="this.closest('.cq-evidence-panel').remove()">閉じる</span>
+    </div>
+    ${results.map(r => `
+      <div class="cq-ev-item">
+        <span class="cq-ev-type cq-ev-type-${r.type}">${typeLabels[r.type] || r.type}</span>
+        <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+        <div class="cq-ev-meta">${esc(r.authors.join(', '))}${r.year ? ' (' + r.year + ')' : ''} - ${esc(r.journal)}</div>
+      </div>
+    `).join('')}
+    <div style="margin-top:.3rem;text-align:right">
+      <a href="https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent((data.keywords || []).join(' AND ') + ' AND (systematic review[pt] OR meta-analysis[pt] OR randomized controlled trial[pt])')}" target="_blank" rel="noopener" style="color:#7c3aed;font-size:.65rem;text-decoration:none">PubMedで全件表示 &rarr;</a>
+    </div>`;
 }
 
 // ── Init ──────────────────────────────────────────────────────
