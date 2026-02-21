@@ -2129,6 +2129,16 @@ function expandSynonyms(word) {
   return result;
 }
 
+// Word boundary match for short terms (<=4 chars) to prevent "acl" matching "baclofen"
+function matchTerm(text, term) {
+  if (term.length <= 4 && /^[a-z\-]+$/.test(term)) {
+    // ASCII short terms: require word boundary
+    const re = new RegExp('\\b' + term.replace(/[-]/g, '\\-') + '\\b', 'i');
+    return re.test(text);
+  }
+  return text.includes(term);
+}
+
 async function loadCQBrowser() {
   const listEl = $('#browse-list');
   const statsEl = $('#browse-stats');
@@ -2158,7 +2168,7 @@ async function loadCQBrowser() {
     groups = groups.map(g => {
       const filteredCQs = g.cqs.filter(cq => {
         const text = (cq.question + ' ' + g.title + ' ' + (g.titleEn || '') + ' ' + (cq.kw || []).join(' ')).toLowerCase();
-        return expandedFilters.every(syns => syns.some(s => text.includes(s)));
+        return expandedFilters.every(syns => syns.some(s => matchTerm(text, s)));
       });
       return filteredCQs.length ? { ...g, cqs: filteredCQs } : null;
     }).filter(Boolean);
