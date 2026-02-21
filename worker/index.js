@@ -42,15 +42,18 @@ export default {
           return await handleTranslate(url);
         case '/api/ai/parse':
           if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
-          return await handleAIParse(await request.json());
+          try { return await handleAIParse(await request.json()); }
+          catch (e) { return json({ error: 'Invalid JSON body' }, 400); }
         case '/api/ai/summary':
           if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
-          return await handleAISummary(await request.json());
+          try { return await handleAISummary(await request.json()); }
+          catch (e) { return json({ error: 'Invalid JSON body' }, 400); }
         default:
           return json({ error: 'Not found' }, 404);
       }
     } catch (e) {
-      return json({ error: e.message }, 500);
+      console.error('Worker error:', e);
+      return json({ error: 'Internal server error' }, 500);
     }
   },
 };
@@ -58,7 +61,7 @@ export default {
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff', ...CORS_HEADERS },
   });
 }
 
@@ -70,8 +73,9 @@ async function handleMeshSuggest(url) {
 
   const res = await fetch(
     `${MESH_LOOKUP}?label=${encodeURIComponent(q)}&match=contains&limit=10`,
-    { headers: { Accept: 'application/json' } }
+    { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
   );
+  if (!res.ok) return json([]);
   const data = await res.json();
 
   const suggestions = Array.isArray(data)
@@ -523,7 +527,8 @@ async function searchPubMed(queryParts) {
     `&retmax=50&retmode=json&sort=relevance` +
     `&tool=evidence-navigator&email=evidence-navigator@example.com`;
 
-  const searchRes = await fetch(searchUrl);
+  const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(8000) });
+  if (!searchRes.ok) throw new Error(`PubMed search HTTP ${searchRes.status}`);
   const searchData = await searchRes.json();
   const ids = searchData?.esearchresult?.idlist || [];
   if (!ids.length) return [];
@@ -535,7 +540,8 @@ async function searchPubMed(queryParts) {
     `&retmode=json` +
     `&tool=evidence-navigator&email=evidence-navigator@example.com`;
 
-  const sumRes = await fetch(sumUrl);
+  const sumRes = await fetch(sumUrl, { signal: AbortSignal.timeout(8000) });
+  if (!sumRes.ok) throw new Error(`PubMed summary HTTP ${sumRes.status}`);
   const sumData = await sumRes.json();
 
   const articles = [];
@@ -592,7 +598,8 @@ async function searchJStage(query) {
     `&keyword=${encodeURIComponent(query)}` +
     `&count=20`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`J-STAGE HTTP ${res.status}`);
   const xml = await res.text();
   return parseJStageXml(xml);
 }
@@ -1007,8 +1014,8 @@ async function handleAIParse(body) {
     );
 
     if (!res.ok) {
-      const err = await res.text();
-      return json({ error: `Gemini API error: ${res.status} ${err}` }, 502);
+      console.error('Gemini API error:', res.status, await res.text());
+      return json({ error: `Gemini API error: HTTP ${res.status}` }, 502);
     }
 
     const data = await res.json();
@@ -1072,8 +1079,8 @@ ${articleList.join('\n')}
     );
 
     if (!res.ok) {
-      const err = await res.text();
-      return json({ error: `Gemini API error: ${res.status} ${err}` }, 502);
+      console.error('Gemini API error:', res.status, await res.text());
+      return json({ error: `Gemini API error: HTTP ${res.status}` }, 502);
     }
 
     const data = await res.json();
@@ -1145,7 +1152,8 @@ async function searchPatientVoicePubMed(queryParts) {
     `&retmax=20&retmode=json&sort=relevance` +
     `&tool=evidence-navigator&email=evidence-navigator@example.com`;
 
-  const searchRes = await fetch(searchUrl);
+  const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(8000) });
+  if (!searchRes.ok) throw new Error(`PubMed PV search HTTP ${searchRes.status}`);
   const searchData = await searchRes.json();
   const ids = searchData?.esearchresult?.idlist || [];
   if (!ids.length) return [];
@@ -1156,7 +1164,8 @@ async function searchPatientVoicePubMed(queryParts) {
     `&retmode=json` +
     `&tool=evidence-navigator&email=evidence-navigator@example.com`;
 
-  const sumRes = await fetch(sumUrl);
+  const sumRes = await fetch(sumUrl, { signal: AbortSignal.timeout(8000) });
+  if (!sumRes.ok) throw new Error(`PubMed PV summary HTTP ${sumRes.status}`);
   const sumData = await sumRes.json();
 
   const articles = [];

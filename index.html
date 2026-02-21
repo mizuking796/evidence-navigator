@@ -14,6 +14,7 @@
       background: #f1f5f9;
       color: #1e293b;
       min-height: 100vh;
+      overflow-y: scroll;
     }
 
     /* ── Header ─────────────────────────────── */
@@ -115,7 +116,8 @@
       border-radius: 6px;
       font-size: .8rem;
     }
-    #browse-list { max-height: 70vh; overflow-y: auto; }
+    #mode-browse { min-width: 0; overflow: hidden; }
+    #browse-list { max-height: 70vh; overflow-y: auto; overflow-x: hidden; }
     .browse-gl {
       border: 1px solid #e2e8f0;
       border-radius: 8px;
@@ -139,6 +141,8 @@
       min-width: 0;
       flex: 1;
       margin-right: .5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .browse-gl-badge {
       background: #ede9fe;
@@ -147,7 +151,7 @@
       padding: .1rem .5rem;
       border-radius: 10px;
     }
-    .browse-gl-body { display: none; padding: .5rem .8rem; }
+    .browse-gl-body { display: none; padding: .5rem .8rem; min-width: 0; overflow: hidden; }
     .browse-gl.open .browse-gl-body { display: block; }
     .browse-cq {
       padding: .35rem 0;
@@ -160,7 +164,7 @@
     .browse-cq:last-child { border-bottom: none; }
     .browse-cq:hover { background: #f1f5f9; border-radius: 4px; }
     .cq-evidence-panel {
-      margin: .3rem 0 .5rem 60px;
+      margin: .3rem 0 .5rem 0;
       padding: .5rem .7rem;
       background: linear-gradient(135deg, #faf5ff, #f0f9ff);
       border-radius: 8px;
@@ -226,7 +230,7 @@
       min-width: 60px;
       flex-shrink: 0;
     }
-    .browse-cq-q { color: #334155; flex: 1; min-width: 0; word-break: break-word; }
+    .browse-cq-q { color: #334155; flex: 1; min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
     .browse-cq-ev {
       font-size: .65rem;
       font-weight: 700;
@@ -287,7 +291,7 @@
 
     /* ── Search Actions ─────────────────────── */
     .search-actions { margin-top: 1rem; text-align: center; }
-    #search-btn {
+    #search-btn, #search-btn-adv {
       background: #2563eb;
       color: #fff;
       border: none;
@@ -298,8 +302,8 @@
       cursor: pointer;
       transition: background .2s;
     }
-    #search-btn:hover { background: #1d4ed8; }
-    #search-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+    #search-btn:hover, #search-btn-adv:hover { background: #1d4ed8; }
+    #search-btn:disabled, #search-btn-adv:disabled { background: #94a3b8; cursor: not-allowed; }
 
     .search-options {
       margin-top: .8rem;
@@ -383,7 +387,6 @@
       border-radius: 50%;
       animation: spin .8s linear infinite;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Summary ─────────────────────────────── */
     #summary {
@@ -980,7 +983,7 @@
       header h1 { font-size: 1.3rem; }
       header { padding: 1.2rem 1rem; }
       .legend { font-size: .65rem; }
-      .search-tabs { overflow-x: auto; }
+      .search-mode-tabs { overflow-x: auto; }
       .ai-key-row { flex-direction: column; align-items: stretch; }
       .patient-voice-section { margin: .8rem .5rem; }
     }
@@ -990,7 +993,7 @@
 
 <header style="cursor:pointer" onclick="location.href=location.pathname">
   <h1>Evidence Navigator</h1>
-  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン348件 + CQ4362件</p>
+  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン345件 + CQ4362件</p>
 </header>
 
 <main>
@@ -1131,7 +1134,7 @@
       </div>
       <div class="ai-key-hint">
         ナラティブ検索・AIサマリーに必要です。キーはブラウザにのみ保存されます。
-        <a href="https://aistudio.google.com/apikey" target="_blank">API Keyを取得</a>
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">API Keyを取得</a>
       </div>
     </div>
   </div>
@@ -1227,12 +1230,12 @@
 
 <footer>
   Evidence Navigator v2.0 —
-  <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PubMed</a> +
-  <a href="https://www.jstage.jst.go.jp/" target="_blank">J-STAGE</a> +
-  <a href="https://www.semanticscholar.org/" target="_blank">Semantic Scholar</a> +
-  <a href="https://openalex.org/" target="_blank">OpenAlex</a> +
-  <a href="https://cir.nii.ac.jp/" target="_blank">CiNii</a> +
-  <a href="https://europepmc.org/" target="_blank">Europe PMC</a>
+  <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank" rel="noopener">PubMed</a> +
+  <a href="https://www.jstage.jst.go.jp/" target="_blank" rel="noopener">J-STAGE</a> +
+  <a href="https://www.semanticscholar.org/" target="_blank" rel="noopener">Semantic Scholar</a> +
+  <a href="https://openalex.org/" target="_blank" rel="noopener">OpenAlex</a> +
+  <a href="https://cir.nii.ac.jp/" target="_blank" rel="noopener">CiNii</a> +
+  <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>
 </footer>
 
 <script>
@@ -1282,9 +1285,9 @@ const pvItemsEl       = $('#pv-items');
 const pvCountEl       = $('#pv-count');
 
 // ── Suggest Autocomplete ─────────────────────────────────────
-let suggestTimer = null;
 
 function initSuggest(input, dropdown, useLocalSuggest) {
+  let suggestTimer = null;
   input.addEventListener('input', () => {
     clearTimeout(suggestTimer);
     const raw = input.value.trim();
@@ -1476,8 +1479,8 @@ async function requestAISummary(data, apiKey) {
     const result = await res.json();
     if (result.error) throw new Error(result.error);
 
-    // Convert markdown-like formatting to HTML
-    const html = result.summary
+    // Convert markdown-like formatting to HTML (escape first to prevent XSS)
+    const html = esc(result.summary)
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/^- /gm, '&bull; ')
       .replace(/\n/g, '<br>');
@@ -1521,7 +1524,7 @@ function renderNationalGuidelines(items) {
         <div class="ngl-card">
           <div class="card-title">
             <span class="ngl-cat">${esc(gl.category)}</span>
-            <a href="${esc(gl.url)}" target="_blank">${esc(gl.title)}</a>
+            <a href="${esc(gl.url)}" target="_blank" rel="noopener">${esc(gl.title)}</a>
           </div>
           <div class="ngl-org">${esc(gl.organization)}（${gl.year || ''}）</div>
         </div>`).join('');
@@ -1577,7 +1580,7 @@ function renderCQCard(cq) {
       <div class="cq-gl-info">
         ${esc(cq.guidelineTitle)}
         ${cq.guidelineOrg ? '(' + esc(cq.guidelineOrg) + ')' : ''}
-        ${cq.page ? '<span class="cq-page-link">p.' + cq.page + '</span>' : ''}
+        ${cq.page ? '<span class="cq-page-link">p.' + esc(String(cq.page)) + '</span>' : ''}
       </div>
     </a>`;
 }
@@ -1606,8 +1609,8 @@ function renderPatientVoice(items) {
     let tags = sources.map(s =>
       `<span class="tag ${srcMap[s] || ''}">${srcName(s)}</span>`
     ).join('');
-    if (item.year) tags += `<span class="tag">${item.year}</span>`;
-    if (item.citations) tags += `<span class="tag tag-cite">cited: ${item.citations}</span>`;
+    if (item.year) tags += `<span class="tag">${esc(String(item.year))}</span>`;
+    if (item.citations) tags += `<span class="tag tag-cite">cited: ${esc(String(item.citations))}</span>`;
 
     const authors = item.authors?.length
       ? item.authors.join(', ') + (item.authors.length >= 5 ? ' et al.' : '')
@@ -1639,7 +1642,7 @@ function renderPatientVoice(items) {
       pvItemsEl.innerHTML += hidden.map(item => {
         const authors = item.authors?.length ? item.authors.join(', ') : '';
         return `<div class="pv-card">
-          <div class="card-title"><a href="${esc(item.url)}" target="_blank">${esc(item.title)}</a></div>
+          <div class="card-title"><a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title)}</a></div>
           <div class="card-meta">${esc(authors)} ${esc(item.journal || '')} ${item.year || ''}</div>
         </div>`;
       }).join('');
@@ -2004,10 +2007,21 @@ function switchMode(mode) {
   // Hide/show search results depending on mode
   const resultAreas = '#summary, #translated-info, .legend, #loading, #ai-summary, #national-gl-section, #cq-section, #patient-voice-section, #pyramid, #toolbar, #results, .ai-settings';
   if (mode === 'browse') {
-    document.querySelectorAll(resultAreas).forEach(el => el.style.display = 'none');
+    // Save visibility state before hiding
+    document.querySelectorAll(resultAreas).forEach(el => {
+      el.dataset.prevDisplay = el.style.display;
+      el.style.display = 'none';
+    });
     loadCQBrowser();
+  } else {
+    // Restore previous visibility when switching back
+    document.querySelectorAll(resultAreas).forEach(el => {
+      if (el.dataset.prevDisplay !== undefined) {
+        el.style.display = el.dataset.prevDisplay;
+        delete el.dataset.prevDisplay;
+      }
+    });
   }
-  // When switching back to search/advanced, results will reappear on next search
 }
 
 // ── CQ Browser ──────────────────────────────────────────────
@@ -2207,7 +2221,7 @@ async function loadCQBrowser() {
             <span class="browse-cq-num">${esc(cq.cq)}</span>
             <span class="browse-cq-q">${esc(cq.question)}</span>
             <span class="browse-cq-ev" style="background:${evColors[cq.evidenceLevel] || '#94a3b8'}20;color:${evColors[cq.evidenceLevel] || '#94a3b8'}">${cq.evidenceLevel}</span>
-            ${cq.page ? `<a href="${esc(g.url)}#page=${cq.page}" target="_blank" class="cq-page-link" title="PDF該当ページ" onclick="event.stopPropagation()">p.${cq.page}</a>` : ''}
+            ${cq.page ? `<a href="${esc(g.url)}#page=${cq.page}" target="_blank" rel="noopener" class="cq-page-link" title="PDF該当ページ" onclick="event.stopPropagation()">p.${cq.page}</a>` : ''}
           </div>
         `).join('')}
       </div>
