@@ -20,9 +20,10 @@ const ALLOWED_ORIGINS = [
 
 function corsHeaders(request) {
   const origin = request?.headers?.get('Origin') || '';
-  const allowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o)) ? origin : ALLOWED_ORIGINS[0];
+  // file:// sends "null" origin; allow it for local dev alongside listed origins
+  const isAllowed = origin === 'null' || ALLOWED_ORIGINS.some(o => origin.startsWith(o));
   return {
-    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Origin': isAllowed ? (origin === 'null' ? '*' : origin) : ALLOWED_ORIGINS[0],
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
@@ -450,15 +451,18 @@ async function handleSearch(url, cors) {
   const expandedParts = expandSynonyms(queryParts);
   // Keep original queryParts for external DB, use expandedParts for CQ/GL search
 
-  // Multilingual: translate and search in both languages
+  // Detect language
+  const isJaQuery = isJapanese(queryParts.join(' '));
+
+  // Multilingual OR auto-translate: get English equivalents for Japanese queries
   let translatedParts = null;
   let translatedDisease = '';
   let translatedTreatment = '';
   let translatedTopic = '';
-  if (multilingual) {
-    const isJa = isJapanese(disease || treatment || topic);
-    const srcLang = isJa ? 'ja' : 'en';
-    const tgtLang = isJa ? 'en' : 'ja';
+  const needsTranslation = multilingual || isJaQuery;
+  if (needsTranslation) {
+    const srcLang = isJaQuery ? 'ja' : 'en';
+    const tgtLang = isJaQuery ? 'en' : 'ja';
 
     const translations = await Promise.allSettled(
       queryParts.map(q => translate(q, srcLang, tgtLang))
@@ -466,30 +470,61 @@ async function handleSearch(url, cors) {
     translatedParts = translations.map((t) =>
       t.status === 'fulfilled' && t.value ? t.value : null
     );
-    // Track translated terms for display
-    let idx = 0;
-    if (disease)   { translatedDisease   = translatedParts[idx] || ''; idx++; }
-    if (treatment) { translatedTreatment = translatedParts[idx] || ''; idx++; }
-    if (topic)     { translatedTopic     = translatedParts[idx] || ''; }
+    // Track translated terms for display (only show if user opted in)
+    if (multilingual) {
+      let idx = 0;
+      if (disease)   { translatedDisease   = translatedParts[idx] || ''; idx++; }
+      if (treatment) { translatedTreatment = translatedParts[idx] || ''; idx++; }
+      if (topic)     { translatedTopic     = translatedParts[idx] || ''; }
+    }
     // Filter out failed translations
     translatedParts = translatedParts.filter(Boolean);
   }
 
-  // Build parallel search tasks: 5 sources × (1 or 2 languages)
-  const allQueries = [{ parts: queryParts, text: queryParts.join(' ') }];
-  if (translatedParts && translatedParts.length > 0) {
-    allQueries.push({ parts: translatedParts, text: translatedParts.join(' ') });
-  }
-
+  // Build parallel search tasks
+  // Strategy: each DB gets the language it handles best
   const searches = [];
   const searchLabels = [];
-  for (const q of allQueries) {
-    searches.push(searchPubMed(q.parts));   searchLabels.push('pubmed');
-    searches.push(searchJStage(q.text));    searchLabels.push('jstage');
-    searches.push(searchS2(q.text));        searchLabels.push('s2');
-    searches.push(searchOpenAlex(q.text));  searchLabels.push('openalex');
-    searches.push(searchCiNii(q.text));     searchLabels.push('cinii');
-    searches.push(searchEPMC(q.text));      searchLabels.push('epmc');
+  const jaText = queryParts.join(' ');
+  const enParts = isJaQuery && translatedParts?.length ? translatedParts : queryParts;
+  const enText = enParts.join(' ');
+
+  if (isJaQuery && !multilingual) {
+    // Japanese query without multilingual:
+    // - PubMed/S2: auto-translated English (these DBs can't search Japanese)
+    // - J-STAGE/CiNii: original Japanese (native Japanese DBs)
+    // - OpenAlex/EPMC: both (partial Japanese support)
+    if (translatedParts?.length) {
+      searches.push(searchPubMed(translatedParts)); searchLabels.push('pubmed');
+      searches.push(searchS2(enText));              searchLabels.push('s2');
+    }
+    searches.push(searchJStage(jaText));    searchLabels.push('jstage');
+    searches.push(searchOpenAlex(jaText));  searchLabels.push('openalex');
+    searches.push(searchCiNii(jaText));     searchLabels.push('cinii');
+    searches.push(searchEPMC(jaText));      searchLabels.push('epmc');
+    // Also search OpenAlex/EPMC with English for broader coverage
+    if (translatedParts?.length) {
+      searches.push(searchOpenAlex(enText)); searchLabels.push('openalex');
+      searches.push(searchEPMC(enText));     searchLabels.push('epmc');
+    }
+  } else if (multilingual && translatedParts?.length) {
+    // Multilingual: both languages to all DBs
+    for (const q of [{ parts: queryParts, text: jaText }, { parts: translatedParts, text: enText }]) {
+      searches.push(searchPubMed(q.parts));   searchLabels.push('pubmed');
+      searches.push(searchJStage(q.text));    searchLabels.push('jstage');
+      searches.push(searchS2(q.text));        searchLabels.push('s2');
+      searches.push(searchOpenAlex(q.text));  searchLabels.push('openalex');
+      searches.push(searchCiNii(q.text));     searchLabels.push('cinii');
+      searches.push(searchEPMC(q.text));      searchLabels.push('epmc');
+    }
+  } else {
+    // English query or translation failed: original behavior
+    searches.push(searchPubMed(queryParts)); searchLabels.push('pubmed');
+    searches.push(searchJStage(jaText));     searchLabels.push('jstage');
+    searches.push(searchS2(jaText));         searchLabels.push('s2');
+    searches.push(searchOpenAlex(jaText));   searchLabels.push('openalex');
+    searches.push(searchCiNii(jaText));      searchLabels.push('cinii');
+    searches.push(searchEPMC(jaText));       searchLabels.push('epmc');
   }
 
   const settled = await Promise.allSettled(searches);
@@ -1159,27 +1194,46 @@ async function searchPatientVoice(queryParts, translatedParts) {
   const baseQuery = queryParts.join(' ');
   const qualEn = QUAL_TERMS.slice(0, 4).map(t => `"${t}"`).join(' OR ');
   const qualJa = QUAL_TERMS_JA.slice(0, 4).join(' OR ');
+  const isJa = isJapanese(baseQuery);
+
+  // For English DBs (PubMed/EPMC): use English query parts
+  // If query is Japanese, auto-translate for PubMed/EPMC
+  let enParts = queryParts;
+  let enBase = baseQuery;
+  if (isJa) {
+    if (translatedParts && translatedParts.length > 0) {
+      enParts = translatedParts;
+      enBase = translatedParts.join(' ');
+    } else {
+      // Auto-translate Japanese → English for PubMed/EPMC
+      const translations = await Promise.allSettled(
+        queryParts.map(q => translate(q, 'ja', 'en'))
+      );
+      const autoTranslated = translations
+        .map(t => t.status === 'fulfilled' && t.value ? t.value : null)
+        .filter(Boolean);
+      if (autoTranslated.length > 0) {
+        enParts = autoTranslated;
+        enBase = autoTranslated.join(' ');
+      }
+    }
+  }
 
   const searches = [
-    searchPatientVoicePubMed(queryParts),
-    searchEPMC(`${baseQuery} AND (${qualEn})`),
+    searchPatientVoicePubMed(enParts),
+    searchEPMC(`${enBase} AND (${qualEn})`),
   ];
 
-  // Add Japanese qualitative search
-  const isJa = isJapanese(baseQuery);
+  // Japanese qualitative search (J-STAGE / CiNii)
   if (isJa) {
     searches.push(searchJStage(`${baseQuery} ${QUAL_TERMS_JA[0]}`));
     searches.push(searchCiNii(`${baseQuery} ${qualJa.split(' OR ')[0]}`));
   }
 
-  // Translated query for broader coverage
-  if (translatedParts && translatedParts.length > 0) {
+  // Translated query for broader coverage (non-Japanese → add J-STAGE/CiNii)
+  if (translatedParts && translatedParts.length > 0 && !isJa) {
     const transQuery = translatedParts.join(' ');
-    if (!isJa) {
-      searches.push(searchJStage(`${transQuery} ${QUAL_TERMS_JA[0]}`));
-    } else {
-      searches.push(searchEPMC(`${transQuery} AND (${qualEn})`));
-    }
+    searches.push(searchJStage(`${transQuery} ${QUAL_TERMS_JA[0]}`));
   }
 
   const settled = await Promise.allSettled(searches);
