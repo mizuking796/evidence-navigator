@@ -12,84 +12,136 @@ const GTRANSLATE = 'https://translate.googleapis.com/translate_a/single';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+const ALLOWED_ORIGINS = [
+  'https://mizuking796.github.io',
+  'http://localhost',
+  'http://127.0.0.1',
+];
+
+function corsHeaders(request) {
+  const origin = request?.headers?.get('Origin') || '';
+  const allowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o)) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
+
+// Simple rate limiting: max 60 requests per minute per IP
+const rateLimitMap = new Map();
+const RATE_LIMIT = 60;
+const RATE_WINDOW = 60000;
+
+let lastCleanup = 0;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  // Cleanup stale entries every RATE_WINDOW
+  if (now - lastCleanup > RATE_WINDOW) {
+    for (const [key, entry] of rateLimitMap) {
+      if (now - entry.start > RATE_WINDOW) rateLimitMap.delete(key);
+    }
+    lastCleanup = now;
+  }
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.start > RATE_WINDOW) {
+    rateLimitMap.set(ip, { start: now, count: 1 });
+    return true;
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT) return false;
+  return true;
+}
 
 export default {
   async fetch(request) {
     const url = new URL(request.url);
+    const cors = corsHeaders(request);
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: CORS_HEADERS });
+      return new Response(null, { headers: cors });
+    }
+
+    // Rate limiting
+    const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return new Response(JSON.stringify({ error: 'Too many requests' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '60', ...cors },
+      });
     }
 
     try {
       switch (url.pathname) {
         case '/api/search':
-          return await handleSearch(url);
+          return await handleSearch(url, cors);
         case '/api/mesh':
-          return await handleMeshSuggest(url);
+          return await handleMeshSuggest(url, cors);
         case '/api/suggest':
-          return handleSuggest(url);
+          return handleSuggest(url, cors);
         case '/api/cq/list':
-          return handleCQList(url);
+          return handleCQList(url, cors);
         case '/api/cq/evidence':
-          return await handleCQEvidence(url);
+          return await handleCQEvidence(url, cors);
         case '/api/translate':
-          return await handleTranslate(url);
+          return await handleTranslate(url, cors);
         case '/api/ai/parse':
-          if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
-          try { return await handleAIParse(await request.json()); }
-          catch (e) { return json({ error: 'Invalid JSON body' }, 400); }
+          if (request.method !== 'POST') return json({ error: 'POST required' }, 405, cors);
+          try { return await handleAIParse(await request.json(), cors); }
+          catch (e) { return json({ error: 'Invalid JSON body' }, 400, cors); }
         case '/api/ai/summary':
-          if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
-          try { return await handleAISummary(await request.json()); }
-          catch (e) { return json({ error: 'Invalid JSON body' }, 400); }
+          if (request.method !== 'POST') return json({ error: 'POST required' }, 405, cors);
+          try { return await handleAISummary(await request.json(), cors); }
+          catch (e) { return json({ error: 'Invalid JSON body' }, 400, cors); }
         default:
-          return json({ error: 'Not found' }, 404);
+          return json({ error: 'Not found' }, 404, cors);
       }
     } catch (e) {
       console.error('Worker error:', e);
-      return json({ error: 'Internal server error' }, 500);
+      return json({ error: 'Internal server error' }, 500, cors);
     }
   },
 };
 
-function json(data, status = 200) {
+function json(data, status = 200, cors = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff', ...CORS_HEADERS },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      ...cors,
+    },
   });
 }
 
 // ── MeSH Suggest ──────────────────────────────────────────────
 
-async function handleMeshSuggest(url) {
+async function handleMeshSuggest(url, cors) {
   const q = url.searchParams.get('q') || '';
-  if (q.length < 2) return json([]);
+  if (q.length < 2) return json([], 200, cors);
 
   const res = await fetch(
     `${MESH_LOOKUP}?label=${encodeURIComponent(q)}&match=contains&limit=10`,
     { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
   );
-  if (!res.ok) return json([]);
+  if (!res.ok) return json([], 200, cors);
   const data = await res.json();
 
   const suggestions = Array.isArray(data)
     ? data.map(item => (typeof item === 'object' && item.label) ? item.label : String(item))
     : [];
 
-  return json(suggestions);
+  return json(suggestions, 200, cors);
 }
 
 // ── Suggest (CQ keywords + GL diseases) ─────────────────────
 
-function handleSuggest(url) {
+function handleSuggest(url, cors) {
   const q = (url.searchParams.get('q') || '').toLowerCase();
-  if (q.length < 1) return json([]);
+  if (q.length < 1) return json([], 200, cors);
 
   const seen = new Set();
   const results = [];
@@ -124,12 +176,12 @@ function handleSuggest(url) {
     return a.length - b.length;
   });
 
-  return json(results.slice(0, 15));
+  return json(results.slice(0, 15), 200, cors);
 }
 
 // ── CQ List (browse all) ────────────────────────────────────
 
-function handleCQList(url) {
+function handleCQList(url, cors) {
   const cat = url.searchParams.get('cat') || '';
 
   const glMap = new Map();
@@ -173,15 +225,15 @@ function handleCQList(url) {
     totalGuidelines: result.length,
     totalCQs: result.reduce((s, g) => s + g.cqs.length, 0),
     groups: result,
-  });
+  }, 200, cors);
 }
 
 // ── CQ Evidence (on-demand PubMed SR/RCT search) ─────────────
 
-async function handleCQEvidence(url) {
+async function handleCQEvidence(url, cors) {
   const q = url.searchParams.get('q') || '';
   const kw = url.searchParams.get('kw') || ''; // pre-attached English keywords from CQ data
-  if (!q) return json({ error: 'q (CQ question text) required' }, 400);
+  if (!q) return json({ error: 'q (CQ question text) required' }, 400, cors);
 
   // Extract meaningful keywords from CQ text
   let keywords = extractCQKeywords(q);
@@ -217,7 +269,7 @@ async function handleCQEvidence(url) {
     }
   }
 
-  if (!keywords.length) return json({ results: [], keywords: [] });
+  if (!keywords.length) return json({ results: [], keywords: [] }, 200, cors);
 
   // Build PubMed query: keywords AND (SR OR MA OR RCT filter)
   const diseaseQuery = keywords.join(' AND ');
@@ -261,9 +313,9 @@ async function handleCQEvidence(url) {
       });
     }
 
-    return json({ results: articles, keywords, query: fullQuery });
+    return json({ results: articles, keywords, query: fullQuery }, 200, cors);
   } catch (e) {
-    return json({ results: [], keywords, error: e.message });
+    return json({ results: [], keywords }, 200, cors);
   }
 }
 
@@ -371,7 +423,7 @@ function expandSynonyms(terms) {
 
 // ── Search ────────────────────────────────────────────────────
 
-async function handleSearch(url) {
+async function handleSearch(url, cors) {
   // Support single 'q' param (split by spaces) OR separate fields
   const qParam = url.searchParams.get('q') || '';
   const disease = url.searchParams.get('disease') || '';
@@ -391,7 +443,7 @@ async function handleSearch(url) {
   }
 
   if (queryParts.length === 0) {
-    return json({ error: 'q, disease, treatment, or topic required' }, 400);
+    return json({ error: 'q, disease, treatment, or topic required' }, 400, cors);
   }
 
   // Synonym expansion (always, before multilingual)
@@ -483,7 +535,7 @@ async function handleSearch(url) {
     clinicalQuestions,
     sources: { ...sourceCounts, errors: sourceErrors },
     patientVoice: patientVoice ? patientVoiceResults : undefined,
-  });
+  }, 200, cors);
 }
 
 // ── Translation ──────────────────────────────────────────────
@@ -506,13 +558,13 @@ async function translate(text, srcLang, tgtLang) {
   }
 }
 
-async function handleTranslate(url) {
+async function handleTranslate(url, cors) {
   const text = url.searchParams.get('text') || '';
-  if (!text) return json({ error: 'text required' }, 400);
+  if (!text) return json({ error: 'text required' }, 400, cors);
   const tgtLang = isJapanese(text) ? 'en' : 'ja';
   const srcLang = isJapanese(text) ? 'ja' : 'en';
   const result = await translate(text, srcLang, tgtLang);
-  return json({ text: result || '', src: srcLang, tgt: tgtLang });
+  return json({ text: result || '', src: srcLang, tgt: tgtLang }, 200, cors);
 }
 
 // ── PubMed ────────────────────────────────────────────────────
@@ -976,10 +1028,10 @@ function groupByEvidence(results) {
 
 // ── AI Parse (Natural Language → Structured Query) ───────────
 
-async function handleAIParse(body) {
+async function handleAIParse(body, cors) {
   const { query, apiKey } = body || {};
-  if (!query) return json({ error: 'query required' }, 400);
-  if (!apiKey) return json({ error: 'apiKey required' }, 400);
+  if (!query) return json({ error: 'query required' }, 400, cors);
+  if (!apiKey) return json({ error: 'apiKey required' }, 400, cors);
 
   const prompt = `あなたは医療文献検索の専門家です。以下の臨床的な質問・シナリオを分析し、エビデンス検索に最適な構造化検索語に変換してください。
 
@@ -1015,7 +1067,7 @@ async function handleAIParse(body) {
 
     if (!res.ok) {
       console.error('Gemini API error:', res.status, await res.text());
-      return json({ error: `Gemini API error: HTTP ${res.status}` }, 502);
+      return json({ error: 'AI service error' }, 502, cors);
     }
 
     const data = await res.json();
@@ -1023,20 +1075,20 @@ async function handleAIParse(body) {
 
     // Extract JSON from response (may be wrapped in ```json blocks)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return json({ error: 'Failed to parse AI response', raw: text }, 500);
+    if (!jsonMatch) return json({ error: 'Failed to parse AI response' }, 500, cors);
 
     const parsed = JSON.parse(jsonMatch[0]);
-    return json(parsed);
+    return json(parsed, 200, cors);
   } catch (e) {
-    return json({ error: `AI parse failed: ${e.message}` }, 500);
+    return json({ error: 'AI parse failed' }, 500, cors);
   }
 }
 
 // ── AI Summary ───────────────────────────────────────────────
 
-async function handleAISummary(body) {
+async function handleAISummary(body, cors) {
   const { results, query, apiKey } = body || {};
-  if (!results || !apiKey) return json({ error: 'results and apiKey required' }, 400);
+  if (!results || !apiKey) return json({ error: 'results and apiKey required' }, 400, cors);
 
   // Build a concise summary of search results for the AI
   const articleList = [];
@@ -1047,7 +1099,7 @@ async function handleAISummary(body) {
     }
   }
 
-  if (!articleList.length) return json({ summary: '検索結果がありません。' });
+  if (!articleList.length) return json({ summary: '検索結果がありません。' }, 200, cors);
 
   const prompt = `あなたは医療文献のエビデンスサマリーを作成する専門家です。以下の検索結果を分析し、臨床的に重要なポイントをナラティブにまとめてください。
 
@@ -1079,15 +1131,15 @@ ${articleList.join('\n')}
     );
 
     if (!res.ok) {
-      console.error('Gemini API error:', res.status, await res.text());
-      return json({ error: `Gemini API error: HTTP ${res.status}` }, 502);
+      console.error('Gemini API error:', res.status);
+      return json({ error: 'AI service error' }, 502, cors);
     }
 
     const data = await res.json();
     const summary = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return json({ summary });
+    return json({ summary }, 200, cors);
   } catch (e) {
-    return json({ error: `AI summary failed: ${e.message}` }, 500);
+    return json({ error: 'AI summary failed' }, 500, cors);
   }
 }
 
