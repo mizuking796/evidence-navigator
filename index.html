@@ -1952,12 +1952,111 @@ function switchMode(mode) {
 // ── CQ Browser ──────────────────────────────────────────────
 let browseCache = null;
 
+// Synonym groups for cross-language & variant matching
+const SYNONYM_GROUPS = [
+  ['stroke', 'cva', 'cerebrovascular', '脳卒中', '脳血管障害', '脳梗塞', '脳出血', '片麻痺'],
+  ['tbi', 'traumatic brain injury', 'brain injury', '外傷性脳損傷', '脳損傷', '頭部外傷'],
+  ['mtbi', 'concussion', '脳震盪', '軽度外傷性脳損傷'],
+  ['sci', 'spinal cord injury', '脊髄損傷', '脊損'],
+  ['multiple sclerosis', 'ms', '多発性硬化症'],
+  ["parkinson", "parkinson's", "パーキンソン", 'パーキンソン病'],
+  ['dementia', 'alzheimer', '認知症', 'アルツハイマー'],
+  ['cerebral palsy', 'cp', '脳性麻痺'],
+  ['als', 'amyotrophic lateral sclerosis', '筋萎縮性側索硬化症'],
+  ['myasthenia gravis', 'mg', '重症筋無力症'],
+  ['epilepsy', 'てんかん'],
+  ['low back pain', 'lbp', '腰痛', 'back pain'],
+  ['neck pain', '頸部痛', '頚椎', 'cervical'],
+  ['knee oa', 'knee osteoarthritis', '膝oa', '変形性膝関節症', 'gonarthrosis'],
+  ['hip oa', 'hip osteoarthritis', '股関節oa', '変形性股関節症', 'coxarthrosis'],
+  ['osteoarthritis', 'oa', '変形性関節症'],
+  ['rheumatoid arthritis', 'ra', '関節リウマチ'],
+  ['osteoporosis', '骨粗鬆症'],
+  ['hip fracture', '大腿骨骨折', '大腿骨頸部骨折'],
+  ['shoulder pain', '肩痛', '肩関節周囲炎', '五十肩', 'frozen shoulder'],
+  ['cardiac rehabilitation', 'cardiac rehab', '心臓リハ', '心リハ'],
+  ['heart failure', 'hf', 'chf', '心不全'],
+  ['myocardial infarction', 'mi', 'ami', '心筋梗塞'],
+  ['copd', 'chronic obstructive pulmonary disease', '慢性閉塞性肺疾患'],
+  ['pulmonary rehabilitation', 'pulmonary rehab', '呼吸リハ', '肺リハ'],
+  ['asthma', '喘息', '気管支喘息'],
+  ['cancer', 'oncology', 'がん', '悪性腫瘍'],
+  ['lung cancer', '肺がん', '肺癌'],
+  ['breast cancer', '乳がん', '乳癌'],
+  ['dysphagia', 'swallowing', '嚥下障害', '嚥下'],
+  ['aphasia', '失語', '失語症'],
+  ['spasticity', '痙縮', '痙性'],
+  ['botulinum toxin', 'botox', 'btx', 'ボツリヌス', 'ボトックス'],
+  ['depression', 'うつ', 'うつ病', '抑うつ'],
+  ['diabetes', 'dm', '糖尿病'],
+  ['ckd', 'chronic kidney disease', '慢性腎臓病'],
+  ['sepsis', '敗血症'],
+  ['burn', '熱傷', 'やけど'],
+  ['pressure injury', 'pressure ulcer', 'decubitus', '褥瘡', 'じょくそう'],
+  ['falls', 'fall prevention', '転倒', '転倒予防'],
+  ['frailty', 'フレイル', '虚弱'],
+  ['sarcopenia', 'サルコペニア'],
+  ['lymphedema', 'lymphoedema', 'リンパ浮腫'],
+  ['overactive bladder', 'oab', '過活動膀胱'],
+  ['incontinence', '失禁', '尿失禁'],
+  ['pain', '疼痛', '痛み'],
+  ['chronic pain', '慢性疼痛'],
+  ['neuropathic pain', '神経障害性疼痛'],
+  ['delirium', 'せん妄'],
+  ['sleep apnea', 'sas', 'osas', '睡眠時無呼吸'],
+  ['insomnia', '不眠', '不眠症'],
+  ['covid', 'covid-19', 'sars-cov-2', 'コロナ'],
+  ['rehabilitation', 'rehab', 'リハビリテーション', 'リハビリ', 'リハ'],
+  ['physical therapy', 'physiotherapy', 'pt', '理学療法'],
+  ['occupational therapy', 'ot', '作業療法'],
+  ['speech therapy', 'speech-language', 'slt', 'slp', '言語療法', '言語聴覚'],
+  ['exercise', 'exercise therapy', '運動療法', '運動'],
+  ['aerobic exercise', 'aerobic training', '有酸素運動'],
+  ['resistance training', 'strength training', '筋力トレーニング', 'レジスタンス'],
+  ['gait', 'walking', 'ambulation', '歩行'],
+  ['balance', 'バランス', '平衡'],
+  ['fes', 'functional electrical stimulation', '機能的電気刺激'],
+  ['tens', 'transcutaneous electrical nerve stimulation', '経皮的電気刺激'],
+  ['tms', 'rtms', 'transcranial magnetic stimulation', '経頭蓋磁気刺激'],
+  ['tdcs', 'transcranial direct current stimulation', '経頭蓋直流刺激'],
+  ['cimt', 'constraint-induced', 'ci療法', 'ci therapy'],
+  ['mirror therapy', 'ミラーセラピー', 'ミラー療法'],
+  ['virtual reality', 'vr', '仮想現実'],
+  ['robot', 'robotic', 'ロボット'],
+  ['telerehabilitation', 'telehealth', 'tele-rehab', '遠隔リハ', 'テレリハ'],
+  ['early mobilization', 'early mobilisation', '早期離床', '早期リハ'],
+  ['adl', 'activities of daily living', '日常生活動作'],
+  ['tai chi', 'taichi', '太極拳'],
+  ['nutrition', '栄養'],
+  ['cognitive', 'cognition', '認知'],
+  ['amputation', '切断'],
+  ['wheelchair', '車椅子', '車いす'],
+  ['orthotics', 'orthosis', '装具'],
+  ['prosthetics', 'prosthesis', '義肢', '義足', '義手'],
+];
+
+function expandSynonyms(word) {
+  const w = word.toLowerCase();
+  const result = [w];
+  for (const group of SYNONYM_GROUPS) {
+    if (group.some(s => s === w || (w.length > 2 && s.includes(w)) || (s.length > 2 && w.includes(s)))) {
+      for (const s of group) {
+        if (!result.includes(s)) result.push(s);
+      }
+    }
+  }
+  return result;
+}
+
 async function loadCQBrowser() {
   const listEl = $('#browse-list');
   const statsEl = $('#browse-stats');
   const catParam = $('#browse-cat').value;
   const filterText = ($('#browse-filter').value || '').trim().toLowerCase();
   const filterWords = filterText ? filterText.split(/\s+/) : [];
+
+  // Expand synonyms: each word becomes [word, ...synonyms]
+  const expandedFilters = filterWords.map(w => expandSynonyms(w));
 
   if (!browseCache) {
     listEl.innerHTML = '<div style="text-align:center;padding:1rem;color:#94a3b8">読み込み中...</div>';
@@ -1973,12 +2072,12 @@ async function loadCQBrowser() {
   let groups = browseCache.groups;
   if (catParam) groups = groups.filter(g => g.cat === catParam);
 
-  // Keyword filter: match CQ question, keywords, or guideline title (bilingual)
-  if (filterWords.length) {
+  // Keyword filter with synonym expansion (bilingual)
+  if (expandedFilters.length) {
     groups = groups.map(g => {
       const filteredCQs = g.cqs.filter(cq => {
         const text = (cq.question + ' ' + g.title + ' ' + (g.titleEn || '') + ' ' + (cq.kw || []).join(' ')).toLowerCase();
-        return filterWords.every(w => text.includes(w));
+        return expandedFilters.every(syns => syns.some(s => text.includes(s)));
       });
       return filteredCQs.length ? { ...g, cqs: filteredCQs } : null;
     }).filter(Boolean);
@@ -1986,7 +2085,7 @@ async function loadCQBrowser() {
 
   const totalCQs = groups.reduce((s, g) => s + g.cqs.length, 0);
   const allTotal = browseCache.groups.reduce((s, g) => s + g.cqs.length, 0);
-  if (filterWords.length) {
+  if (expandedFilters.length) {
     statsEl.innerHTML = `<strong style="color:#6d28d9">${totalCQs}件ヒット</strong> / ${allTotal} CQs`;
   } else {
     statsEl.textContent = `${groups.length}ガイドライン / ${totalCQs} CQs`;
@@ -1997,7 +2096,7 @@ async function loadCQBrowser() {
 
   const evColors = { A: '#059669', B: '#2563eb', C: '#d97706', D: '#ef4444', '-': '#94a3b8' };
 
-  const autoOpen = filterWords.length > 0;
+  const autoOpen = expandedFilters.length > 0;
   if (autoOpen && groups.length === 0) {
     listEl.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8">該当するCQがありません</div>';
     return;
