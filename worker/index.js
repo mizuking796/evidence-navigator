@@ -8,7 +8,7 @@ const OPENALEX_BASE = 'https://api.openalex.org/works';
 const CINII_BASE = 'https://cir.nii.ac.jp/opensearch/all';
 const EPMC_BASE = 'https://www.ebi.ac.uk/europepmc/webservices/rest/search';
 const MESH_LOOKUP = 'https://id.nlm.nih.gov/mesh/lookup/descriptor';
-const GTRANSLATE = 'https://translate.googleapis.com/translate_a/single';
+const MYMEMORY = 'https://api.mymemory.translated.net/get';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -610,12 +610,33 @@ function isJapanese(text) {
 }
 
 async function translate(text, srcLang, tgtLang) {
+  // Step 1: Try SYN_MAP first (instant, no API call)
+  if (srcLang === 'ja' && tgtLang === 'en') {
+    const syns = SYN_MAP.get(text.toLowerCase()) || SYN_MAP.get(text);
+    if (syns) {
+      const en = [...syns].find(s => /^[A-Za-z]/.test(s) && s.length > 1);
+      if (en) return en;
+    }
+  } else if (srcLang === 'en' && tgtLang === 'ja') {
+    const syns = SYN_MAP.get(text.toLowerCase()) || SYN_MAP.get(text);
+    if (syns) {
+      const ja = [...syns].find(s => /[\u3000-\u9FFF]/.test(s));
+      if (ja) return ja;
+    }
+  }
+  // Step 2: MyMemory API
   try {
-    const url = `${GTRANSLATE}?client=gtx&sl=${srcLang}&tl=${tgtLang}&dt=t&q=${encodeURIComponent(text)}`;
+    const langpair = `${srcLang}|${tgtLang}`;
+    const url = `${MYMEMORY}?q=${encodeURIComponent(text)}&langpair=${langpair}&de=evidence.navigator@gmail.com`;
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
     const data = await res.json();
-    // Response: [[["translated","original",...],...],...]
-    const translated = data?.[0]?.map(seg => seg[0]).join('') || '';
+    let translated = data?.responseData?.translatedText || '';
+    // Detect rate limit response
+    if (translated.includes('MYMEMORY') || translated.includes('PLEASE')) return null;
+    // Clean dictionary-style responses: "[読み] /translation/" → "translation"
+    const dictMatch = translated.match(/\/(.+?)\//);
+    if (dictMatch) translated = dictMatch[1];
+    translated = translated.replace(/^\[.*?\]\s*/, '').trim();
     if (!translated || translated.toLowerCase() === text.toLowerCase()) return null;
     return translated;
   } catch {
