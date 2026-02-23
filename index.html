@@ -1735,14 +1735,17 @@ function renderClinicalQuestions(items) {
   }
 }
 
+const CQ_FLAGS = {JP:'\u{1F1EF}\u{1F1F5}',US:'\u{1F1FA}\u{1F1F8}',UK:'\u{1F1EC}\u{1F1E7}',EU:'\u{1F1EA}\u{1F1FA}',CN:'\u{1F1E8}\u{1F1F3}',AU:'\u{1F1E6}\u{1F1FA}',CA:'\u{1F1E8}\u{1F1E6}',KR:'\u{1F1F0}\u{1F1F7}',TW:'\u{1F1F9}\u{1F1FC}',IN:'\u{1F1EE}\u{1F1F3}',DE:'\u{1F1E9}\u{1F1EA}',IT:'\u{1F1EE}\u{1F1F9}',ZA:'\u{1F1FF}\u{1F1E6}',QA:'\u{1F1F6}\u{1F1E6}',BR:'\u{1F1E7}\u{1F1F7}',INT:'\u{1F30D}',INTL:'\u{1F30D}'};
+
 function renderCQCard(cq) {
   const evClass = cq.evidenceLevel === '-' ? 'cq-ev-na' : `cq-ev-${cq.evidenceLevel}`;
   const evLabel = cq.evidenceLevel === '-' ? '-' : cq.evidenceLevel;
   const href = cq.guidelineUrl ? `${esc(cq.guidelineUrl)}${cq.page ? '#page=' + cq.page : ''}` : '';
+  const flag = CQ_FLAGS[cq.country] || '';
   return `
     <a class="cq-card" ${href ? `href="${href}" target="_blank" rel="noopener"` : ''} style="display:block;text-decoration:none;color:inherit">
       <div class="cq-card-top">
-        <span class="cq-num">${esc(cq.cq)}</span>
+        <span class="cq-num">${flag} ${esc(cq.cq)}</span>
         <span class="cq-type">${esc(cq.type)}</span>
         <span class="cq-ev-badge ${evClass}" title="エビデンスの強さ">${evLabel}</span>
         <span class="cq-rec">${esc(cq.recommendation)}</span>

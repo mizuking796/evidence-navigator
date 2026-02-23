@@ -1602,6 +1602,7 @@ function searchClinicalQuestions(queryParts, translatedParts) {
         guidelineTitle: gl ? gl.title : '',
         guidelineOrg: gl ? gl.org : '',
         guidelineUrl: gl ? gl.url : '',
+        country: gl ? (gl.country || 'JP') : 'JP',
         page: cq.page || null,
         score: score + evBonus,
       });
@@ -1609,5 +1610,22 @@ function searchClinicalQuestions(queryParts, translatedParts) {
   }
 
   scored.sort((a, b) => b.score - a.score);
+
+  // Diversify: ensure top results include different countries
+  // Take top CQ from each country first, then fill with remaining by score
+  if (scored.length > 10) {
+    const seen = new Set();
+    const top = [];
+    const rest = [];
+    for (const cq of scored) {
+      if (!seen.has(cq.country) && top.length < 20) {
+        seen.add(cq.country);
+        top.push(cq);
+      } else {
+        rest.push(cq);
+      }
+    }
+    return [...top, ...rest];
+  }
   return scored;
 }
