@@ -433,6 +433,21 @@ const SYNONYMS = [
   ['HAL', 'ロボットスーツ'],
   ['FIM', '機能的自立度評価'],
   ['BI', 'Barthel Index', 'バーセルインデックス'],
+  // 整形外科
+  ['腱板', '腱板損傷', 'rotator cuff', 'rotator cuff tear'],
+  ['半月板', '半月板損傷', 'meniscus', 'meniscal tear'],
+  ['椎間板ヘルニア', '腰椎椎間板ヘルニア', 'disc herniation', 'herniated disc'],
+  ['脊柱管狭窄症', '腰部脊柱管狭窄症', 'spinal stenosis', 'lumbar stenosis'],
+  ['変形性脊椎症', 'spondylosis', '脊椎症'],
+  // 神経系
+  ['片麻痺', 'hemiplegia', 'hemiparesis', '半身麻痺'],
+  ['失調', 'ataxia', '運動失調', '小脳失調'],
+  // 老年・フレイル
+  ['サルコペニア', 'sarcopenia', '筋肉減少症'],
+  ['フレイル', 'frailty', '虚弱'],
+  // その他
+  ['褥瘡', '褥創', 'pressure ulcer', 'pressure injury', 'bed sore'],
+  ['誤嚥性肺炎', 'aspiration pneumonia', '誤嚥'],
 ];
 
 // Build lookup: term(lowercase) → Set of synonyms
@@ -1528,6 +1543,8 @@ function searchNationalGuidelines(queryParts, translatedParts) {
     }
 
     if (score > 0) {
+      // Recency bonus: newer GLs get up to +5 points (2025=+5, 2020=+2.5, 2015=0)
+      const recency = Math.max(0, Math.min(5, ((gl.year || 2015) - 2015) * 0.5));
       scored.push({
         id: `gl-${gl.id}`,
         title: gl.title,
@@ -1536,7 +1553,7 @@ function searchNationalGuidelines(queryParts, translatedParts) {
         year: gl.year,
         url: gl.url,
         diseases: gl.diseases,
-        score,
+        score: score + recency,
         source: '国内GL',
         evidenceLevel: 'guideline',
       });
@@ -1571,6 +1588,8 @@ function searchClinicalQuestions(queryParts, translatedParts) {
     }
 
     if (score > 0) {
+      // Evidence level bonus: A=+4, B=+3, C=+2, D=+1, -=0
+      const evBonus = { A: 4, B: 3, C: 2, D: 1 }[cq.ev] || 0;
       const gl = glMap.get(cq.gid);
       scored.push({
         gid: cq.gid,
@@ -1584,7 +1603,7 @@ function searchClinicalQuestions(queryParts, translatedParts) {
         guidelineOrg: gl ? gl.org : '',
         guidelineUrl: gl ? gl.url : '',
         page: cq.page || null,
-        score,
+        score: score + evBonus,
       });
     }
   }
