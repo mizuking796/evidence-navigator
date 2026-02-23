@@ -1344,6 +1344,7 @@
     <div class="export-group">
       <span>出力:</span>
       <button class="tb-btn" id="export-csv">CSV</button>
+      <button class="tb-btn" id="export-ris">RIS</button>
       <button class="tb-btn" id="export-bib">BibTeX</button>
     </div>
   </div>
@@ -2176,6 +2177,26 @@ function exportBibTeX() {
   download('evidence-navigator.bib', entries.join('\n\n'), 'application/x-bibtex');
 }
 
+function exportRIS() {
+  const items = getAllItems();
+  if (!items.length) return;
+
+  const entries = items.map(item => {
+    const lines = ['TY  - JOUR'];
+    if (item.title) lines.push(`TI  - ${item.title}`);
+    if (item.authors) item.authors.forEach(a => lines.push(`AU  - ${a}`));
+    if (item.journal) lines.push(`JO  - ${item.journal}`);
+    if (item.year) lines.push(`PY  - ${item.year}`);
+    if (item.doi) lines.push(`DO  - ${item.doi}`);
+    if (item.url) lines.push(`UR  - ${item.url}`);
+    if (item.id) lines.push(`AN  - ${item.id}`);
+    lines.push('ER  - ');
+    return lines.join('\n');
+  });
+
+  download('evidence-navigator.ris', entries.join('\n'), 'application/x-research-info-systems');
+}
+
 function download(filename, content, mime) {
   const blob = new Blob([content], { type: mime + ';charset=utf-8' });
   const a = document.createElement('a');
@@ -2660,6 +2681,7 @@ function init() {
   });
   // Export buttons
   $('#export-csv').addEventListener('click', exportCSV);
+  $('#export-ris').addEventListener('click', exportRIS);
   $('#export-bib').addEventListener('click', exportBibTeX);
 
   // Restore from URL params
