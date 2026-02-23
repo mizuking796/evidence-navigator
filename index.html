@@ -1806,14 +1806,12 @@ function renderClinicalQuestions(items) {
 
 function renderCQGroup(g, autoOpen) {
   const flag = CQ_FLAGS[g.country] || '';
-  const titleLink = g.url
-    ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()">${esc(g.title)}</a>`
-    : esc(g.title);
   return `
     <div class="cq-gl-group${autoOpen ? ' open' : ''}">
       <div class="cq-gl-group-header" onclick="this.parentElement.classList.toggle('open')">
         <span class="cq-gl-group-flag">${flag}</span>
-        <span class="cq-gl-group-title">${titleLink}
+        <span class="cq-gl-group-title">${esc(g.title)}
+          ${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="ガイドライン原文を開く" style="display:inline-flex;align-items:center;gap:.2rem;margin-left:.3rem;padding:.1rem .4rem;background:#6d28d9;color:#fff;font-size:.6rem;font-weight:600;border-radius:4px;text-decoration:none;white-space:nowrap;vertical-align:middle">原文 &#8599;</a>` : ''}
           <span class="cq-gl-group-org">${g.org ? esc(g.org) : ''}</span>
         </span>
         <span class="cq-gl-group-badge">${g.cqs.length}</span>
@@ -2576,8 +2574,9 @@ async function loadCQBrowser() {
     <div class="browse-gl${autoOpen ? ' open' : ''}" data-gid="${esc(g.gid)}">
       <div class="browse-gl-header" onclick="this.parentElement.classList.toggle('open')">
         <span>
-          ${flag ? `<span style="margin-right:.3rem" title="${esc(g.country)}">${flag}</span>` : ''}${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()" title="ガイドライン本文を開く">${esc(g.title)}</a>` : esc(g.title)}
+          ${flag ? `<span style="margin-right:.3rem" title="${esc(g.country)}">${flag}</span>` : ''}${esc(g.title)}
           ${glIsEn ? `<button class="tl-btn" onclick="event.stopPropagation();translateGLTitle(this)" title="日本語に翻訳" style="margin-left:.3rem">訳</button>` : ''}
+          ${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="ガイドライン原文を開く" style="display:inline-flex;align-items:center;gap:.2rem;margin-left:.4rem;padding:.15rem .45rem;background:#6d28d9;color:#fff;font-size:.65rem;font-weight:600;border-radius:4px;text-decoration:none;white-space:nowrap;vertical-align:middle">原文 &#8599;</a>` : ''}
           <small style="color:#94a3b8">${esc(g.org)}</small>
         </span>
         <span class="browse-gl-badge">${g.cqs.length} CQs</span>
