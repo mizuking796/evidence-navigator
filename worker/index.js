@@ -14,6 +14,8 @@ const DOAJ_BASE = 'https://doaj.org/api/search/articles';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
 const ALLOWED_ORIGINS = [
   'https://mizuking796.github.io',
   'http://localhost',
@@ -562,7 +564,6 @@ async function handleSearch(url, cors) {
   // Additional sources: Cochrane, DOAJ, ClinicalTrials.gov
   // Cochrane uses PubMed API → delay 2s to avoid PubMed rate limit collision
   const cochraneTerms = isJaQuery && translatedParts?.length ? enParts : queryParts;
-  const delay = ms => new Promise(r => setTimeout(r, ms));
   searches.push(delay(2000).then(() => searchCochrane(cochraneTerms))); searchLabels.push('cochrane');
   searches.push(searchDOAJ(jaText)); searchLabels.push('doaj');
   if (isJaQuery && translatedParts?.length) {
@@ -1425,6 +1426,14 @@ async function searchPatientVoice(queryParts, translatedParts) {
   const searches = [
     searchPatientVoicePubMed(enParts),
     searchEPMC(`${enBase} AND (${qualEn})`),
+    // S2: qualitative terms in query
+    searchS2(`${enBase} qualitative patient experience quality of life`),
+    // OpenAlex: broad qualitative search
+    searchOpenAlex(`${enBase} patient experience qualitative`),
+    // DOAJ: open access qualitative research
+    searchDOAJ(`${enBase} qualitative patient`),
+    // Cochrane: qualitative evidence synthesis (delay to avoid PubMed rate collision)
+    delay(2000).then(() => searchCochrane([...enParts, '"qualitative"'])),
   ];
 
   // Japanese qualitative search (J-STAGE / CiNii)
@@ -1447,7 +1456,7 @@ async function searchPatientVoice(queryParts, translatedParts) {
 
   // Dedup and tag as patient voice
   const { results } = deduplicateAndMerge(allResults);
-  return results.map(r => ({ ...r, isPatientVoice: true })).slice(0, 30);
+  return results.map(r => ({ ...r, isPatientVoice: true })).slice(0, 50);
 }
 
 async function searchPatientVoicePubMed(queryParts) {
