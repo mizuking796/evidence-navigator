@@ -9,6 +9,8 @@ const CINII_BASE = 'https://cir.nii.ac.jp/opensearch/all';
 const EPMC_BASE = 'https://www.ebi.ac.uk/europepmc/webservices/rest/search';
 const MESH_LOOKUP = 'https://id.nlm.nih.gov/mesh/lookup/descriptor';
 const MYMEMORY = 'https://api.mymemory.translated.net/get';
+const CTGOV_BASE = 'https://clinicaltrials.gov/api/v2/studies';
+const DOAJ_BASE = 'https://doaj.org/api/search/articles';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -557,6 +559,18 @@ async function handleSearch(url, cors) {
     searches.push(searchEPMC(jaText));       searchLabels.push('epmc');
   }
 
+  // Additional sources: Cochrane, DOAJ, ClinicalTrials.gov
+  const cochraneTerms = isJaQuery && translatedParts?.length ? enParts : queryParts;
+  searches.push(searchCochrane(cochraneTerms)); searchLabels.push('cochrane');
+  searches.push(searchDOAJ(jaText)); searchLabels.push('doaj');
+  if (isJaQuery && translatedParts?.length) {
+    searches.push(searchDOAJ(enText)); searchLabels.push('doaj');
+  }
+
+  // ClinicalTrials.gov (separate: different data type)
+  const ctQuery = isJaQuery && translatedParts?.length ? enText : jaText;
+  const ctPromise = searchClinicalTrials(ctQuery).catch(() => []);
+
   const settled = await Promise.allSettled(searches);
 
   // Collect all results and errors
@@ -589,6 +603,10 @@ async function handleSearch(url, cors) {
     patientVoiceResults = await searchPatientVoice(queryParts, translatedParts);
   }
 
+  // ClinicalTrials.gov results
+  const clinicalTrials = await ctPromise;
+  sourceCounts.clinicalTrials = clinicalTrials.length;
+
   return json({
     query: { disease, treatment, topic },
     multilingual: multilingual ? {
@@ -598,6 +616,7 @@ async function handleSearch(url, cors) {
     results: groupByEvidence(results),
     nationalGuidelines: nationalGL,
     clinicalQuestions,
+    clinicalTrials,
     sources: { ...sourceCounts, errors: sourceErrors },
     patientVoice: patientVoice ? patientVoiceResults : undefined,
   }, 200, cors);
@@ -980,6 +999,135 @@ async function searchEPMC(query) {
   });
 }
 
+
+// ── Cochrane (via PubMed journal filter) ────────────────────
+
+async function searchCochrane(queryParts) {
+  const query = queryParts.join(' AND ') + ' AND "Cochrane Database Syst Rev"[Journal]';
+  const searchUrl =
+    `${PUBMED_BASE}/esearch.fcgi?db=pubmed` +
+    `&term=${encodeURIComponent(query)}` +
+    `&retmax=10&retmode=json&sort=relevance` +
+    `&tool=evidence-navigator&email=evidence-navigator@example.com`;
+
+  const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(8000) });
+  if (!searchRes.ok) throw new Error(`Cochrane search HTTP ${searchRes.status}`);
+  const searchData = await searchRes.json();
+  const ids = searchData?.esearchresult?.idlist || [];
+  if (!ids.length) return [];
+
+  const sumUrl =
+    `${PUBMED_BASE}/esummary.fcgi?db=pubmed` +
+    `&id=${ids.join(',')}` +
+    `&retmode=json` +
+    `&tool=evidence-navigator&email=evidence-navigator@example.com`;
+
+  const sumRes = await fetch(sumUrl, { signal: AbortSignal.timeout(8000) });
+  if (!sumRes.ok) throw new Error(`Cochrane summary HTTP ${sumRes.status}`);
+  const sumData = await sumRes.json();
+
+  const articles = [];
+  for (const id of ids) {
+    const a = sumData?.result?.[id];
+    if (!a || !a.title) continue;
+    const doi = (a.articleids || []).find(x => x.idtype === 'doi')?.value || '';
+    articles.push({
+      id: `pm-${id}`,
+      title: strip(a.title),
+      authors: (a.authors || []).map(x => x.name).slice(0, 5),
+      journal: a.source || '',
+      year: yearOf(a.pubdate || ''),
+      pubTypes: a.pubtype || [],
+      evidenceLevel: 'sr_ma',
+      doi,
+      url: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
+      source: 'Cochrane',
+      isCochrane: true,
+    });
+  }
+  return articles;
+}
+
+// ── ClinicalTrials.gov ──────────────────────────────────────
+
+async function searchClinicalTrials(query) {
+  const url =
+    `${CTGOV_BASE}?query.term=${encodeURIComponent(query)}` +
+    `&pageSize=10&format=json`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) {
+    if (res.status === 429) return [];
+    throw new Error(`ClinicalTrials.gov HTTP ${res.status}`);
+  }
+  const data = await res.json();
+
+  return (data?.studies || []).map(study => {
+    const proto = study.protocolSection || {};
+    const idMod = proto.identificationModule || {};
+    const statusMod = proto.statusModule || {};
+    const designMod = proto.designModule || {};
+    const condMod = proto.conditionsModule || {};
+    const armsMod = proto.armsInterventionsModule || {};
+    const contacts = proto.contactsLocationsModule?.overallOfficials || [];
+
+    return {
+      nctId: idMod.nctId || '',
+      title: idMod.officialTitle || idMod.briefTitle || '',
+      briefTitle: idMod.briefTitle || '',
+      status: statusMod.overallStatus || '',
+      phase: (designMod.phases || []).join(', ') || 'N/A',
+      studyType: designMod.studyType || '',
+      conditions: condMod.conditions || [],
+      interventions: (armsMod.interventions || []).map(i => i.name).slice(0, 5),
+      startDate: statusMod.startDateStruct?.date || '',
+      completionDate: statusMod.completionDateStruct?.date || '',
+      enrollment: designMod.enrollmentInfo?.count || null,
+      lead: contacts.length > 0 ? contacts[0].name : '',
+      url: `https://clinicaltrials.gov/study/${idMod.nctId || ''}`,
+    };
+  });
+}
+
+// ── DOAJ (Open Access) ──────────────────────────────────────
+
+async function searchDOAJ(query) {
+  const url =
+    `${DOAJ_BASE}/${encodeURIComponent(query)}?pageSize=15`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) {
+    if (res.status === 429) return [];
+    throw new Error(`DOAJ HTTP ${res.status}`);
+  }
+  const data = await res.json();
+
+  return (data?.results || []).map(item => {
+    const bib = item.bibjson || {};
+    const ids = bib.identifier || [];
+    const doi = (ids.find(i => i.type === 'doi') || {}).id || '';
+    const authors = (bib.author || []).map(a => a.name).filter(Boolean).slice(0, 5);
+    const links = bib.link || [];
+    const fullTextUrl = (links.find(l => l.type === 'fulltext') || {}).url || '';
+    const journal = (bib.journal || {}).title || '';
+    const year = bib.year ? parseInt(bib.year) : null;
+
+    return {
+      id: `doaj-${item.id || Math.random().toString(36).slice(2, 8)}`,
+      title: bib.title || '',
+      authors,
+      journal,
+      year,
+      pubTypes: [],
+      evidenceLevel: classifyByTitle(bib.title || ''),
+      doi,
+      url: fullTextUrl || (doi ? `https://doi.org/${doi}` : ''),
+      source: 'DOAJ',
+      openAccess: true,
+    };
+  });
+}
+
 // ── Evidence Classification ──────────────────────────────────
 
 function classifyByTitle(title) {
@@ -1070,7 +1218,7 @@ function mergeInto(existing, newer) {
 
 function deduplicateAndMerge(allResults) {
   const map = new Map(); // dedupKey → result
-  const sourceCounts = { pubmed: 0, jstage: 0, s2: 0, openalex: 0, cinii: 0, epmc: 0 };
+  const sourceCounts = { pubmed: 0, jstage: 0, s2: 0, openalex: 0, cinii: 0, epmc: 0, cochrane: 0, doaj: 0 };
 
   for (const r of allResults) {
     const key = dedupKey(r);
@@ -1084,7 +1232,9 @@ function deduplicateAndMerge(allResults) {
         : r.source === 'J-STAGE' ? 'jstage'
         : r.source === 'Semantic Scholar' ? 's2'
         : r.source === 'OpenAlex' ? 'openalex'
-        : r.source === 'Europe PMC' ? 'epmc' : 'cinii';
+        : r.source === 'Europe PMC' ? 'epmc'
+        : r.source === 'Cochrane' ? 'cochrane'
+        : r.source === 'DOAJ' ? 'doaj' : 'cinii';
       sourceCounts[srcKey]++;
     }
   }

@@ -510,6 +510,10 @@
     .src-s2     { background: #fce7f3; color: #9d174d; }
     .src-openalex { background: #e0e7ff; color: #3730a3; }
     .src-cinii  { background: #fef9c3; color: #854d0e; }
+    .src-cochrane { background: #fde68a; color: #92400e; font-weight: 600; }
+    .src-doaj   { background: #d1fae5; color: #065f46; }
+    .tag-oa     { background: #d1fae5; color: #065f46; font-weight: 600; }
+    .tag-cochrane { background: #fde68a; color: #92400e; font-weight: 600; }
     .tag-doi    { background: #fef3c7; color: #92400e; }
     .tl-btn {
       display: inline-flex;
@@ -580,6 +584,72 @@
     .tb-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 
     /* ── Pyramid ─────────────────────────────── */
+
+    /* ── Clinical Trials ───────────────────── */
+    .ct-section {
+      max-width: 800px;
+      margin: 1rem auto;
+      padding: 1.2rem;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #e0f2fe 100%);
+      border-radius: 12px;
+      border: 2px solid #3b82f6;
+      box-shadow: 0 2px 8px rgba(59,130,246,.15);
+      display: none;
+    }
+    .ct-header {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .ct-icon { font-size: 1.4rem; }
+    .ct-title { font-size: 1rem; font-weight: 700; color: #1e40af; }
+    .ct-subtitle { font-size: .72rem; color: #3b82f6; }
+    .ct-count {
+      margin-left: auto;
+      font-size: .85rem;
+      font-weight: 700;
+      color: #1e40af;
+    }
+    .ct-items { margin-top: .8rem; }
+    .ct-card {
+      padding: .6rem .8rem;
+      margin-bottom: .5rem;
+      background: #fff;
+      border-radius: 8px;
+      border-left: 3px solid #3b82f6;
+    }
+    .ct-card-title a {
+      font-size: .88rem;
+      font-weight: 600;
+      color: #1e3a5f;
+      text-decoration: none;
+    }
+    .ct-card-title a:hover { text-decoration: underline; color: #2563eb; }
+    .ct-card-meta {
+      font-size: .72rem;
+      color: #64748b;
+      margin-top: .25rem;
+    }
+    .ct-status {
+      display: inline-block;
+      font-size: .65rem;
+      font-weight: 600;
+      padding: .1rem .4rem;
+      border-radius: 4px;
+      margin-right: .3rem;
+    }
+    .ct-status-recruiting { background: #d1fae5; color: #065f46; }
+    .ct-status-completed { background: #e0e7ff; color: #3730a3; }
+    .ct-status-active { background: #fef3c7; color: #92400e; }
+    .ct-status-other { background: #f1f5f9; color: #475569; }
+    .ct-more {
+      margin-top: .5rem;
+      text-align: center;
+      font-size: .78rem;
+      color: #2563eb;
+      cursor: pointer;
+    }
+
     .pyramid {
       max-width: 800px;
       margin: .8rem auto;
@@ -1012,7 +1082,7 @@
 
 <header style="cursor:pointer" onclick="location.href=location.pathname">
   <h1>Evidence Navigator</h1>
-  <p>エビデンスに基づく医療文献検索 — 6DB横断 + ガイドライン383件 + CQ5098件</p>
+  <p>エビデンスに基づく医療文献検索 — 9DB横断 + 臨床試験 + ガイドライン383件 + CQ5098件</p>
 </header>
 
 <main>
@@ -1225,6 +1295,20 @@
     <div class="pv-more" id="pv-more" style="display:none"></div>
   </div>
 
+  <!-- Clinical Trials Section -->
+  <div class="ct-section" id="ct-section">
+    <div class="ct-header">
+      <span class="ct-icon">&#129514;</span>
+      <div>
+        <div class="ct-title">Clinical Trials &#183; 臨床試験レジストリ</div>
+        <div class="ct-subtitle">ClinicalTrials.gov — 進行中・完了済みの臨床試験</div>
+      </div>
+      <span class="ct-count" id="ct-count">0件</span>
+    </div>
+    <div class="ct-items" id="ct-items"></div>
+    <div class="ct-more" id="ct-more" style="display:none"></div>
+  </div>
+
   <div class="pyramid" id="pyramid">
     <div class="pyramid-title">エビデンスピラミッド</div>
     <div id="pyramid-bars"></div>
@@ -1248,13 +1332,16 @@
 </main>
 
 <footer>
-  Evidence Navigator v2.0 —
+  Evidence Navigator v3.0 —
   <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank" rel="noopener">PubMed</a> +
+  <a href="https://www.cochranelibrary.com/" target="_blank" rel="noopener">Cochrane</a> +
   <a href="https://www.jstage.jst.go.jp/" target="_blank" rel="noopener">J-STAGE</a> +
   <a href="https://www.semanticscholar.org/" target="_blank" rel="noopener">Semantic Scholar</a> +
   <a href="https://openalex.org/" target="_blank" rel="noopener">OpenAlex</a> +
   <a href="https://cir.nii.ac.jp/" target="_blank" rel="noopener">CiNii</a> +
-  <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a>
+  <a href="https://europepmc.org/" target="_blank" rel="noopener">Europe PMC</a> +
+  <a href="https://doaj.org/" target="_blank" rel="noopener">DOAJ</a> +
+  <a href="https://clinicaltrials.gov/" target="_blank" rel="noopener">ClinicalTrials.gov</a>
 </footer>
 
 <script>
@@ -1302,6 +1389,9 @@ const cqCountEl       = $('#cq-count');
 const pvSection       = $('#patient-voice-section');
 const pvItemsEl       = $('#pv-items');
 const pvCountEl       = $('#pv-count');
+const ctSection       = $('#ct-section');
+const ctItemsEl       = $('#ct-items');
+const ctCountEl       = $('#ct-count');
 
 // ── Suggest Autocomplete ─────────────────────────────────────
 
@@ -1456,6 +1546,7 @@ async function executeSearch({ q, disease, treatment, topic }) {
     renderNationalGuidelines(data.nationalGuidelines);
     renderClinicalQuestions(data.clinicalQuestions);
     renderPatientVoice(data.patientVoice);
+    renderClinicalTrials(data.clinicalTrials);
     renderPyramid(data.results, data.nationalGuidelines, data.clinicalQuestions);
     renderResults(data.results);
     showToolbar();
@@ -1622,6 +1713,7 @@ function renderPatientVoice(items) {
     const srcMap = {
       'PubMed': 'src-pubmed', 'J-STAGE': 'src-jstage', 'Semantic Scholar': 'src-s2',
       'OpenAlex': 'src-openalex', 'CiNii': 'src-cinii', 'Europe PMC': 'src-epmc',
+      'Cochrane': 'src-cochrane', 'DOAJ': 'src-doaj',
     };
     const srcName = s => s === 'Semantic Scholar' ? 'S2' : s === 'Europe PMC' ? 'EPMC' : s;
     const sources = item.foundIn || [item.source];
@@ -1713,19 +1805,92 @@ function renderTranslated(ml) {
   }
 }
 
+
+// ── Render Clinical Trials ───────────────────────────────────
+function renderClinicalTrials(trials) {
+  if (!trials || !trials.length) {
+    ctSection.style.display = 'none';
+    return;
+  }
+  ctSection.style.display = 'block';
+  ctCountEl.textContent = `${trials.length}件`;
+
+  const statusClass = s => {
+    const sl = (s || '').toLowerCase();
+    if (sl.includes('recruit')) return 'ct-status-recruiting';
+    if (sl.includes('complet')) return 'ct-status-completed';
+    if (sl.includes('active') || sl.includes('ongoing')) return 'ct-status-active';
+    return 'ct-status-other';
+  };
+  const statusLabel = s => {
+    const map = {
+      'RECRUITING': '募集中', 'ACTIVE_NOT_RECRUITING': '進行中',
+      'COMPLETED': '完了', 'TERMINATED': '中止', 'WITHDRAWN': '取下げ',
+      'NOT_YET_RECRUITING': '未開始', 'ENROLLING_BY_INVITATION': '招待制',
+      'SUSPENDED': '中断', 'UNKNOWN': '不明',
+    };
+    return map[s] || s || '';
+  };
+
+  const showLimit = 5;
+  const visible = trials.slice(0, showLimit);
+  const hidden = trials.slice(showLimit);
+
+  ctItemsEl.innerHTML = visible.map(t => `
+    <div class="ct-card">
+      <div class="ct-card-title">
+        <span class="ct-status ${statusClass(t.status)}">${esc(statusLabel(t.status))}</span>
+        <a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.briefTitle || t.title)}</a>
+      </div>
+      <div class="ct-card-meta">
+        ${t.nctId ? `<span>${esc(t.nctId)}</span>` : ''}
+        ${t.phase !== 'N/A' && t.phase ? ` | Phase: ${esc(t.phase)}` : ''}
+        ${t.enrollment ? ` | N=${t.enrollment}` : ''}
+        ${t.conditions?.length ? ` | ${t.conditions.slice(0,3).map(c => esc(c)).join(', ')}` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  const ctMore = $('#ct-more');
+  if (hidden.length > 0) {
+    ctMore.textContent = `+ ${hidden.length}件をさらに表示`;
+    ctMore.style.display = 'block';
+    ctMore.onclick = () => {
+      ctItemsEl.innerHTML += hidden.map(t => `
+        <div class="ct-card">
+          <div class="ct-card-title">
+            <span class="ct-status ${statusClass(t.status)}">${esc(statusLabel(t.status))}</span>
+            <a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.briefTitle || t.title)}</a>
+          </div>
+          <div class="ct-card-meta">
+            ${t.nctId ? `<span>${esc(t.nctId)}</span>` : ''}
+            ${t.phase !== 'N/A' && t.phase ? ` | Phase: ${esc(t.phase)}` : ''}
+            ${t.enrollment ? ` | N=${t.enrollment}` : ''}
+          </div>
+        </div>
+      `).join('');
+      ctMore.style.display = 'none';
+    };
+  } else {
+    ctMore.style.display = 'none';
+  }
+}
+
 // ── Render Summary ────────────────────────────────────────────
 function renderSummary(data) {
   const { totalCount, sources } = data;
   const glCount = data.nationalGuidelines ? data.nationalGuidelines.length : 0;
   const cqCount = data.clinicalQuestions ? data.clinicalQuestions.length : 0;
-  const grandTotal = totalCount + glCount + cqCount;
+  const grandTotal = totalCount + glCount + cqCount + ctCount;
+  const ctCount = data.clinicalTrials ? data.clinicalTrials.length : 0;
   const srcNames = [
-    ['pubmed', 'PubMed'], ['jstage', 'J-STAGE'], ['s2', 'S2'],
-    ['openalex', 'OpenAlex'], ['cinii', 'CiNii'], ['epmc', 'EPMC'],
+    ['pubmed', 'PubMed'], ['cochrane', 'Cochrane'], ['jstage', 'J-STAGE'], ['s2', 'S2'],
+    ['openalex', 'OpenAlex'], ['cinii', 'CiNii'], ['epmc', 'EPMC'], ['doaj', 'DOAJ'],
   ];
   let html = `<span class="total">${grandTotal}件</span>`;
   if (glCount) html += `<span class="src" style="color:#166534">GL: ${glCount}件</span>`;
   if (cqCount) html += `<span class="src" style="color:#6d28d9">CQ: ${cqCount}件</span>`;
+  if (ctCount) html += `<span class="src" style="color:#1e40af">CT: ${ctCount}件</span>`;
   for (const [key, name] of srcNames) {
     if (sources[key]) html += `<span class="src">${name}: ${sources[key]}件</span>`;
   }
@@ -1778,6 +1943,7 @@ function renderCard(item, prefixBadge) {
   const srcMap = {
     'PubMed': 'src-pubmed', 'J-STAGE': 'src-jstage', 'Semantic Scholar': 'src-s2',
     'OpenAlex': 'src-openalex', 'CiNii': 'src-cinii', 'Europe PMC': 'src-epmc',
+    'Cochrane': 'src-cochrane', 'DOAJ': 'src-doaj',
   };
   const srcName = s => s === 'Semantic Scholar' ? 'S2' : s === 'Europe PMC' ? 'EPMC' : s;
   const sources = item.foundIn || [item.source];
@@ -1785,6 +1951,8 @@ function renderCard(item, prefixBadge) {
   let tags = sources.map(s =>
     `<span class="tag ${srcMap[s] || ''}">${srcName(s)}</span>`
   ).join('');
+  if (item.isCochrane) tags += `<span class="tag tag-cochrane">Cochrane SR</span>`;
+  if (item.openAccess) tags += `<span class="tag tag-oa">Open Access</span>`;
   if (item.citations)
     tags += `<span class="tag tag-cite">cited: ${item.citations}</span>`;
   if (item.doi)
@@ -2024,7 +2192,7 @@ function switchMode(mode) {
   $(`#mode-${mode}`).style.display = 'block';
 
   // Hide/show search results depending on mode
-  const resultAreas = '#summary, #translated-info, .legend, #loading, #ai-summary, #national-gl-section, #cq-section, #patient-voice-section, #pyramid, #toolbar, #results, .ai-settings';
+  const resultAreas = '#summary, #translated-info, .legend, #loading, #ai-summary, #national-gl-section, #cq-section, #patient-voice-section, #ct-section, #pyramid, #toolbar, #results, .ai-settings';
   if (mode === 'browse') {
     // Save visibility state before hiding
     document.querySelectorAll(resultAreas).forEach(el => {
