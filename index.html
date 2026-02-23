@@ -1206,6 +1206,25 @@
             <option value="INT">🌍 Other</option>
           </optgroup>
         </select>
+        <select id="browse-country" style="padding:.35rem .5rem;border-radius:8px;border:1px solid #cbd5e1;font-size:.85rem;color:#334155;background:#fff">
+          <option value="">全地域</option>
+          <option value="JP">🇯🇵 日本 (JP)</option>
+          <option value="US">🇺🇸 米国 (US)</option>
+          <option value="UK">🇬🇧 英国 (UK)</option>
+          <option value="EU">🇪🇺 EU</option>
+          <option value="CN">🇨🇳 中国 (CN)</option>
+          <option value="AU">🇦🇺 豪州 (AU)</option>
+          <option value="CA">🇨🇦 加 (CA)</option>
+          <option value="KR">🇰🇷 韓国 (KR)</option>
+          <option value="TW">🇹🇼 台湾 (TW)</option>
+          <option value="IN">🇮🇳 印 (IN)</option>
+          <option value="DE">🇩🇪 独 (DE)</option>
+          <option value="IT">🇮🇹 伊 (IT)</option>
+          <option value="ZA">🇿🇦 南ア (ZA)</option>
+          <option value="QA">🇶🇦 カタール (QA)</option>
+          <option value="BR">🇧🇷 伯 (BR)</option>
+          <option value="INT">🌍 国際 (INT)</option>
+        </select>
       </div>
       <div id="browse-list"></div>
     </div>
@@ -2363,6 +2382,14 @@ async function loadCQBrowser() {
 
   let groups = browseCache.groups;
   if (catParam) groups = groups.filter(g => g.cat === catParam);
+  const countryParam = $('#browse-country').value;
+  if (countryParam) {
+    if (countryParam === 'INT') {
+      groups = groups.filter(g => g.country === 'INT' || g.country === 'INTL');
+    } else {
+      groups = groups.filter(g => g.country === countryParam || (g.country || '').startsWith(countryParam));
+    }
+  }
 
   // Keyword filter with synonym expansion (bilingual)
   if (expandedFilters.length) {
@@ -2387,6 +2414,7 @@ async function loadCQBrowser() {
   if (clearBtn) clearBtn.style.display = filterText ? 'block' : 'none';
 
   const evColors = { A: '#059669', B: '#2563eb', C: '#d97706', D: '#ef4444', '-': '#94a3b8' };
+  const countryFlags = {JP:'\u{1F1EF}\u{1F1F5}',US:'\u{1F1FA}\u{1F1F8}',UK:'\u{1F1EC}\u{1F1E7}',EU:'\u{1F1EA}\u{1F1FA}',CN:'\u{1F1E8}\u{1F1F3}',AU:'\u{1F1E6}\u{1F1FA}',CA:'\u{1F1E8}\u{1F1E6}',KR:'\u{1F1F0}\u{1F1F7}',TW:'\u{1F1F9}\u{1F1FC}',IN:'\u{1F1EE}\u{1F1F3}',DE:'\u{1F1E9}\u{1F1EA}',IT:'\u{1F1EE}\u{1F1F9}',ZA:'\u{1F1FF}\u{1F1E6}',QA:'\u{1F1F6}\u{1F1E6}',BR:'\u{1F1E7}\u{1F1F7}',INT:'\u{1F30D}',INTL:'\u{1F30D}'};
 
   const autoOpen = expandedFilters.length > 0;
   if (autoOpen && groups.length === 0) {
@@ -2395,11 +2423,12 @@ async function loadCQBrowser() {
   }
   listEl.innerHTML = groups.map(g => {
     const glIsEn = !/[\u3000-\u9FFF\uF900-\uFAFF]/.test(g.title);
+    const flag = countryFlags[g.country] || '';
     return `
     <div class="browse-gl${autoOpen ? ' open' : ''}" data-gid="${esc(g.gid)}">
       <div class="browse-gl-header" onclick="this.parentElement.classList.toggle('open')">
         <span>
-          ${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()" title="ガイドライン本文を開く">${esc(g.title)}</a>` : esc(g.title)}
+          ${flag ? `<span style="margin-right:.3rem" title="${esc(g.country)}">${flag}</span>` : ''}${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none" onclick="event.stopPropagation()" title="ガイドライン本文を開く">${esc(g.title)}</a>` : esc(g.title)}
           ${glIsEn ? `<button class="tl-btn" onclick="event.stopPropagation();translateGLTitle(this)" title="日本語に翻訳" style="margin-left:.3rem">訳</button>` : ''}
           <small style="color:#94a3b8">${esc(g.org)}</small>
         </span>
@@ -2608,6 +2637,7 @@ function init() {
 
   // Browse category filter + keyword filter
   $('#browse-cat').addEventListener('change', () => loadCQBrowser());
+  $('#browse-country').addEventListener('change', () => loadCQBrowser());
   let browseFilterTimer = null;
   $('#browse-filter').addEventListener('input', () => {
     clearTimeout(browseFilterTimer);
