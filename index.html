@@ -2273,7 +2273,7 @@ function switchMode(mode) {
   $(`#mode-${mode}`).style.display = 'block';
 
   // Hide/show search results depending on mode
-  const resultAreas = '#summary, #translated-info, .legend, #loading, #ai-summary, #national-gl-section, #cq-section, #patient-voice-section, #ct-section, #pyramid, #toolbar, #results, .ai-settings';
+  const resultAreas = '#summary, #translated-info, .legend, #loading, #ai-summary, #national-gl-section, #cq-section, #patient-voice-section, #ct-section, #pyramid, #toolbar, #results';
   if (mode === 'browse') {
     // Save visibility state before hiding
     document.querySelectorAll(resultAreas).forEach(el => {
