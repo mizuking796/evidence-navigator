@@ -1166,16 +1166,16 @@
         <div id="history-chips" style="display:flex;flex-wrap:wrap;gap:.3rem"></div>
       </div>
       <div class="search-options">
+        <div id="search-mode-toggle" style="display:inline-flex;border:2px solid #cbd5e1;border-radius:8px;overflow:hidden;margin-right:.8rem">
+          <button type="button" class="smt-btn active" data-smode="evidence" style="padding:.35rem .7rem;font-size:.8rem;font-weight:600;border:none;cursor:pointer;transition:all .2s;background:#3b82f6;color:#fff">文献検索</button>
+          <button type="button" class="smt-btn" data-smode="patientvoice" style="padding:.35rem .7rem;font-size:.8rem;font-weight:600;border:none;cursor:pointer;transition:all .2s;background:#fff;color:#64748b">患者の声</button>
+        </div>
         <label>
           <input type="checkbox" id="multilingual">
           多言語検索
           <span class="opt-desc">（自動翻訳で英語・日本語を横断検索）</span>
         </label>
-        <label>
-          <input type="checkbox" id="patient-voice">
-          患者の声を含む
-          <span class="opt-desc">（質的研究・患者体験も検索）</span>
-        </label>
+        <input type="checkbox" id="patient-voice" style="display:none">
       </div>
     </div>
 
@@ -1646,16 +1646,29 @@ async function executeSearch({ q, disease, treatment, topic }) {
     if (data.error) throw new Error(data.error);
 
     lastData = data;
-    renderLegend();
-    renderTranslated(data.multilingual);
-    renderSummary(data);
-    renderNationalGuidelines(data.nationalGuidelines);
-    renderClinicalQuestions(data.clinicalQuestions);
-    renderPatientVoice(data.patientVoice);
-    renderClinicalTrials(data.clinicalTrials);
-    renderPyramid(data.results, data.nationalGuidelines, data.clinicalQuestions);
-    renderResults(data.results);
-    showToolbar();
+
+    const pvOnly = patientVoice && document.querySelector('.smt-btn[data-smode="patientvoice"]').classList.contains('active');
+
+    if (pvOnly) {
+      // Patient Voice only mode: show only PV results
+      renderPatientVoice(data.patientVoice);
+      // Minimal summary
+      summaryEl.innerHTML = data.patientVoice && data.patientVoice.length
+        ? `<span class="total">${data.patientVoice.length}件</span><span class="src" style="color:#b45309">患者の声・質的研究</span>`
+        : `<span style="color:#94a3b8">該当する質的研究が見つかりませんでした</span>`;
+      summaryEl.style.display = 'block';
+    } else {
+      renderLegend();
+      renderTranslated(data.multilingual);
+      renderSummary(data);
+      renderNationalGuidelines(data.nationalGuidelines);
+      renderClinicalQuestions(data.clinicalQuestions);
+      renderPatientVoice(data.patientVoice);
+      renderClinicalTrials(data.clinicalTrials);
+      renderPyramid(data.results, data.nationalGuidelines, data.clinicalQuestions);
+      renderResults(data.results);
+      showToolbar();
+    }
 
     history.replaceState(null, '', `?${params}`);
 
@@ -2811,6 +2824,24 @@ function init() {
   $('#export-csv').addEventListener('click', exportCSV);
   $('#export-ris').addEventListener('click', exportRIS);
   $('#export-bib').addEventListener('click', exportBibTeX);
+
+  // Search mode toggle (文献検索 / 患者の声)
+  document.querySelectorAll('.smt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.smt-btn').forEach(b => {
+        b.style.background = '#fff'; b.style.color = '#64748b';
+        b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      const isPV = btn.dataset.smode === 'patientvoice';
+      if (isPV) {
+        btn.style.background = '#f59e0b'; btn.style.color = '#fff';
+      } else {
+        btn.style.background = '#3b82f6'; btn.style.color = '#fff';
+      }
+      $('#patient-voice').checked = isPV;
+    });
+  });
 
   // Search history
   renderSearchHistory();
