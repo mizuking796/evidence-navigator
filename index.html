@@ -151,20 +151,20 @@
       padding: .1rem .5rem;
       border-radius: 10px;
     }
-    .browse-gl-body { display: none; padding: .5rem .8rem; min-width: 0; overflow: hidden; }
-    .browse-gl.open .browse-gl-body { display: block; }
+    .browse-gl-body { display: none; padding: .5rem; min-width: 0; overflow: hidden; }
+    .browse-gl.open .browse-gl-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .4rem; }
     .browse-cq {
-      padding: .45rem .5rem;
-      border-bottom: 1px solid #f1f5f9;
+      padding: .5rem .6rem;
       font-size: .8rem;
       display: flex;
-      gap: .5rem;
-      align-items: center;
-      border-radius: 4px;
-      transition: background .15s;
+      flex-direction: column;
+      gap: .3rem;
+      border-radius: 6px;
+      transition: background .15s, box-shadow .15s;
+      background: rgba(255,255,255,.7);
+      border: 1px solid #e2e8f0;
     }
-    .browse-cq:last-child { border-bottom: none; }
-    .browse-cq:hover { background: #f5f3ff; }
+    .browse-cq:hover { background: #f5f3ff; box-shadow: 0 1px 4px rgba(139,92,246,.15); }
     .cq-evidence-panel {
       margin: .3rem 0 .5rem 0;
       padding: .5rem .7rem;
@@ -2587,11 +2587,13 @@ async function loadCQBrowser() {
           const isEn = !/[\u3000-\u9FFF\uF900-\uFAFF]/.test(cq.question);
           return `
           <div class="browse-cq" data-q="${esc(cq.question)}" data-kw="${esc((cq.kw || []).filter(k => /^[A-Za-z\s\-]+$/.test(k)).join(','))}" style="cursor:pointer" title="クリックでこのCQに関連する文献を検索">
-            <span class="browse-cq-num">${esc(cq.cq)}</span>
+            <div style="display:flex;align-items:center;gap:.3rem">
+              <span class="browse-cq-num">${esc(cq.cq)}</span>
+              <span class="browse-cq-ev" style="background:${evColors[cq.evidenceLevel] || '#94a3b8'}">${cq.evidenceLevel}</span>
+              ${isEn ? `<button class="tl-btn" onclick="event.stopPropagation();translateCQ(this)" title="日本語に翻訳">訳</button>` : ''}
+              ${cq.page ? `<a href="${esc(g.url)}#page=${cq.page}" target="_blank" rel="noopener" class="cq-page-link" title="PDF該当ページ" onclick="event.stopPropagation()">p.${cq.page}</a>` : ''}
+            </div>
             <span class="browse-cq-q">${esc(cq.question)}</span>
-            ${isEn ? `<button class="tl-btn" onclick="event.stopPropagation();translateCQ(this)" title="日本語に翻訳">訳</button>` : ''}
-            <span class="browse-cq-ev" style="background:${evColors[cq.evidenceLevel] || '#94a3b8'}">${cq.evidenceLevel}</span>
-            ${cq.page ? `<a href="${esc(g.url)}#page=${cq.page}" target="_blank" rel="noopener" class="cq-page-link" title="PDF該当ページ" onclick="event.stopPropagation()">p.${cq.page}</a>` : ''}
           </div>`;
         }).join('')}
       </div>
