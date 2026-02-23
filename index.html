@@ -1942,8 +1942,8 @@ function renderSummary(data) {
   const { totalCount, sources } = data;
   const glCount = data.nationalGuidelines ? data.nationalGuidelines.length : 0;
   const cqCount = data.clinicalQuestions ? data.clinicalQuestions.length : 0;
-  const grandTotal = totalCount + glCount + cqCount + ctCount;
   const ctCount = data.clinicalTrials ? data.clinicalTrials.length : 0;
+  const grandTotal = totalCount + glCount + cqCount + ctCount;
   const srcNames = [
     ['pubmed', 'PubMed'], ['cochrane', 'Cochrane'], ['jstage', 'J-STAGE'], ['s2', 'S2'],
     ['openalex', 'OpenAlex'], ['cinii', 'CiNii'], ['epmc', 'EPMC'], ['doaj', 'DOAJ'],
