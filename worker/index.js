@@ -314,7 +314,7 @@ async function handleCQEvidence(url, cors) {
   const searchUrl =
     `${PUBMED_BASE}/esearch.fcgi?db=pubmed` +
     `&term=${encodeURIComponent(fullQuery)}` +
-    `&retmax=5&retmode=json&sort=relevance` +
+    `&retmax=15&retmode=json&sort=relevance` +
     `&tool=evidence-navigator&email=evidence-navigator@example.com`;
 
   try {
