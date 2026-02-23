@@ -560,8 +560,10 @@ async function handleSearch(url, cors) {
   }
 
   // Additional sources: Cochrane, DOAJ, ClinicalTrials.gov
+  // Cochrane uses PubMed API → delay 2s to avoid PubMed rate limit collision
   const cochraneTerms = isJaQuery && translatedParts?.length ? enParts : queryParts;
-  searches.push(searchCochrane(cochraneTerms)); searchLabels.push('cochrane');
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  searches.push(delay(2000).then(() => searchCochrane(cochraneTerms))); searchLabels.push('cochrane');
   searches.push(searchDOAJ(jaText)); searchLabels.push('doaj');
   if (isJaQuery && translatedParts?.length) {
     searches.push(searchDOAJ(enText)); searchLabels.push('doaj');
