@@ -1113,6 +1113,13 @@
         <span class="chip" data-q="認知症 運動">認知症 運動</span>
         <span class="chip" data-q="慢性疼痛 治療">慢性疼痛</span>
       </div>
+      <div id="search-history" style="display:none;margin-top:.3rem">
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
+          <small style="color:#94a3b8">最近の検索</small>
+          <button id="clear-history" style="border:none;background:none;color:#94a3b8;font-size:.7rem;cursor:pointer;padding:0" title="履歴をクリア">クリア</button>
+        </div>
+        <div id="history-chips" style="display:flex;flex-wrap:wrap;gap:.3rem"></div>
+      </div>
       <div class="search-options">
         <label>
           <input type="checkbox" id="multilingual">
@@ -1485,6 +1492,37 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// ── Search History ────────────────────────────────────────────
+const HISTORY_KEY = 'en-search-history';
+const HISTORY_MAX = 10;
+
+function getSearchHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
+}
+
+function addSearchHistory(query) {
+  if (!query) return;
+  let h = getSearchHistory().filter(q => q !== query);
+  h.unshift(query);
+  if (h.length > HISTORY_MAX) h = h.slice(0, HISTORY_MAX);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+  renderSearchHistory();
+}
+
+function renderSearchHistory() {
+  const h = getSearchHistory();
+  const container = $('#search-history');
+  const chips = $('#history-chips');
+  if (!h.length) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  chips.innerHTML = h.map(q =>
+    `<span class="chip" style="background:#f1f5f9;color:#475569;font-size:.8rem;padding:.2rem .5rem" data-hq="${esc(q)}">${esc(q)}</span>`
+  ).join('');
+  chips.querySelectorAll('.chip').forEach(el => {
+    el.addEventListener('click', () => { qInput.value = el.dataset.hq; doSearch(); });
+  });
+}
+
 // ── Search ────────────────────────────────────────────────────
 let abortCtrl = null;
 let lastData = null;  // stored for sort/export
@@ -1524,6 +1562,9 @@ function resetUI() {
 
 async function executeSearch({ q, disease, treatment, topic }) {
   if (!q && !disease && !treatment && !topic) return;
+
+  // Save to history
+  addSearchHistory(q || [disease, treatment, topic].filter(Boolean).join(' '));
 
   // Abort previous
   if (abortCtrl) abortCtrl.abort();
@@ -2683,6 +2724,13 @@ function init() {
   $('#export-csv').addEventListener('click', exportCSV);
   $('#export-ris').addEventListener('click', exportRIS);
   $('#export-bib').addEventListener('click', exportBibTeX);
+
+  // Search history
+  renderSearchHistory();
+  $('#clear-history').addEventListener('click', () => {
+    localStorage.removeItem(HISTORY_KEY);
+    renderSearchHistory();
+  });
 
   // Restore from URL params
   const params = new URLSearchParams(location.search);
