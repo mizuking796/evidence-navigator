@@ -530,6 +530,21 @@ async function handleSearch(url, cors) {
     translatedParts = translatedParts.filter(Boolean);
   }
 
+  // Patient Voice only mode: skip literature/GL/CQ/CT searches
+  if (patientVoice) {
+    const pvResults = await searchPatientVoice(queryParts, translatedParts);
+    return json({
+      query: { disease, treatment, topic },
+      totalCount: 0,
+      results: {},
+      nationalGuidelines: [],
+      clinicalQuestions: [],
+      clinicalTrials: [],
+      sources: {},
+      patientVoice: pvResults,
+    }, 200, cors);
+  }
+
   // Build parallel search tasks
   // Strategy: each DB gets the language it handles best
   const searches = [];
@@ -615,12 +630,6 @@ async function handleSearch(url, cors) {
   const clinicalQuestions = searchClinicalQuestions(expandedParts, translatedParts);
   sourceCounts.clinicalQuestions = clinicalQuestions.length;
 
-  // Patient Voice: additional qualitative research search
-  let patientVoiceResults = [];
-  if (patientVoice) {
-    patientVoiceResults = await searchPatientVoice(queryParts, translatedParts);
-  }
-
   // ClinicalTrials.gov results
   const clinicalTrials = await ctPromise;
   sourceCounts.clinicalTrials = clinicalTrials.length;
@@ -636,7 +645,6 @@ async function handleSearch(url, cors) {
     clinicalQuestions,
     clinicalTrials,
     sources: { ...sourceCounts, errors: sourceErrors },
-    patientVoice: patientVoice ? patientVoiceResults : undefined,
   }, 200, cors);
 }
 

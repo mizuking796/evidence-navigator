@@ -1619,13 +1619,14 @@ async function executeSearch({ q, disease, treatment, topic }) {
   const mlCb = simpleMode ? multilingualCb : $('#multilingual-adv');
   const pvCb = simpleMode ? patientVoiceCb : $('#patient-voice-adv');
   const multilingual = mlCb ? mlCb.checked : false;
-  const patientVoice = pvCb ? pvCb.checked : false;
+  const pvToggleActive = document.querySelector('.smt-btn[data-smode="patientvoice"]')?.classList.contains('active');
+  const patientVoice = pvToggleActive || (pvCb ? pvCb.checked : false);
   const btn = simpleMode ? searchBtn : searchBtnAdv;
 
   if (btn) btn.disabled = true;
   loadingEl.style.display = 'flex';
   loadingEl.querySelector('span').textContent =
-    multilingual ? '多言語横断検索中...' : '検索中...';
+    pvToggleActive ? '患者の声を検索中...' : multilingual ? '多言語横断検索中...' : '検索中...';
   resetUI();
 
   try {
@@ -1647,9 +1648,7 @@ async function executeSearch({ q, disease, treatment, topic }) {
 
     lastData = data;
 
-    const pvOnly = patientVoice && document.querySelector('.smt-btn[data-smode="patientvoice"]').classList.contains('active');
-
-    if (pvOnly) {
+    if (pvToggleActive) {
       // Patient Voice only mode: show only PV results, hide everything else
       renderNationalGuidelines(null);
       renderClinicalQuestions(null);
