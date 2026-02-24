@@ -1571,6 +1571,8 @@ function renderSearchHistory() {
 // ── Search ────────────────────────────────────────────────────
 let abortCtrl = null;
 let lastData = null;  // stored for sort/export
+// Cache for mode switching: { query, evidence: data, pv: data }
+let searchCache = { query: '', evidence: null, pv: null };
 
 function getApiKey() {
   return geminiKeyInput.value.trim() || localStorage.getItem('geminiKey') || '';
@@ -1648,33 +1650,18 @@ async function executeSearch({ q, disease, treatment, topic }) {
 
     lastData = data;
 
-    if (pvToggleActive) {
-      // Patient Voice only mode: show only PV results, hide everything else
-      renderNationalGuidelines(null);
-      renderClinicalQuestions(null);
-      renderClinicalTrials(null);
-      renderPyramid({}, null, null);
-      resultsEl.innerHTML = '';
-      $('#toolbar').style.display = 'none';
-      legendEl.style.display = 'none';
-      renderPatientVoice(data.patientVoice);
-      // Minimal summary
-      summaryEl.innerHTML = data.patientVoice && data.patientVoice.length
-        ? `<span class="total">${data.patientVoice.length}件</span><span class="src" style="color:#b45309">患者の声・質的研究</span>`
-        : `<span style="color:#94a3b8">該当する質的研究が見つかりませんでした</span>`;
-      summaryEl.style.display = 'block';
-    } else {
-      renderLegend();
-      renderTranslated(data.multilingual);
-      renderSummary(data);
-      renderNationalGuidelines(data.nationalGuidelines);
-      renderClinicalQuestions(data.clinicalQuestions);
-      renderPatientVoice(data.patientVoice);
-      renderClinicalTrials(data.clinicalTrials);
-      renderPyramid(data.results, data.nationalGuidelines, data.clinicalQuestions);
-      renderResults(data.results);
-      showToolbar();
+    // Cache results by mode
+    const cacheKey = q || [disease, treatment, topic].filter(Boolean).join(' ');
+    if (searchCache.query !== cacheKey) {
+      searchCache = { query: cacheKey, evidence: null, pv: null };
     }
+    if (pvToggleActive) {
+      searchCache.pv = data;
+    } else {
+      searchCache.evidence = data;
+    }
+
+    displayResults(data, pvToggleActive);
 
     history.replaceState(null, '', `?${params}`);
 
@@ -1691,6 +1678,36 @@ async function executeSearch({ q, disease, treatment, topic }) {
   } finally {
     if (btn) btn.disabled = false;
     loadingEl.style.display = 'none';
+  }
+}
+
+function displayResults(data, isPV) {
+  if (isPV) {
+    renderNationalGuidelines(null);
+    renderClinicalQuestions(null);
+    renderClinicalTrials(null);
+    renderPyramid({}, null, null);
+    resultsEl.innerHTML = '';
+    $('#toolbar').style.display = 'none';
+    legendEl.style.display = 'none';
+    translatedEl.style.display = 'none';
+    aiSummaryEl.style.display = 'none';
+    renderPatientVoice(data.patientVoice);
+    summaryEl.innerHTML = data.patientVoice && data.patientVoice.length
+      ? `<span class="total">${data.patientVoice.length}件</span><span class="src" style="color:#b45309">患者の声・質的研究</span>`
+      : `<span style="color:#94a3b8">該当する質的研究が見つかりませんでした</span>`;
+    summaryEl.style.display = 'block';
+  } else {
+    renderLegend();
+    renderTranslated(data.multilingual);
+    renderSummary(data);
+    renderNationalGuidelines(data.nationalGuidelines);
+    renderClinicalQuestions(data.clinicalQuestions);
+    renderPatientVoice(data.patientVoice);
+    renderClinicalTrials(data.clinicalTrials);
+    renderPyramid(data.results, data.nationalGuidelines, data.clinicalQuestions);
+    renderResults(data.results);
+    showToolbar();
   }
 }
 
@@ -2846,9 +2863,16 @@ function init() {
         btn.style.background = '#3b82f6'; btn.style.color = '#fff';
       }
       $('#patient-voice').checked = isPV;
-      // Auto re-search if there's a query
+      // Switch display: use cache if available, otherwise re-search
       const q = qInput.value.trim();
-      if (q) executeSearch({ q });
+      if (!q) return;
+      const cached = isPV ? searchCache.pv : searchCache.evidence;
+      if (cached && searchCache.query === q) {
+        lastData = cached;
+        displayResults(cached, isPV);
+      } else {
+        executeSearch({ q });
+      }
     });
   });
 
