@@ -2846,6 +2846,9 @@ function init() {
         btn.style.background = '#3b82f6'; btn.style.color = '#fff';
       }
       $('#patient-voice').checked = isPV;
+      // Auto re-search if there's a query
+      const q = queryInput.value.trim();
+      if (q) executeSearch(q);
     });
   });
 
