@@ -1650,7 +1650,14 @@ async function executeSearch({ q, disease, treatment, topic }) {
     const pvOnly = patientVoice && document.querySelector('.smt-btn[data-smode="patientvoice"]').classList.contains('active');
 
     if (pvOnly) {
-      // Patient Voice only mode: show only PV results
+      // Patient Voice only mode: show only PV results, hide everything else
+      renderNationalGuidelines(null);
+      renderClinicalQuestions(null);
+      renderClinicalTrials(null);
+      renderPyramid({}, null, null);
+      resultsEl.innerHTML = '';
+      $('#toolbar').style.display = 'none';
+      legendEl.style.display = 'none';
       renderPatientVoice(data.patientVoice);
       // Minimal summary
       summaryEl.innerHTML = data.patientVoice && data.patientVoice.length
